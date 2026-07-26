@@ -1,0 +1,59 @@
+# FoxMath 🦊
+
+**Minimalist CLI for math & cryptography exploration.**
+
+One binary. Clean output. Zero footguns. Educational by design.
+
+Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
+
+## Features
+- Legendre symbol
+- Catalan-inspired π approximation
+- Elliptic curve point addition (over finite fields)
+- Symlink-friendly (foxmath-legendre, foxmath-pi, foxmath-ecadd)
+- JSON output mode
+- Coming soon: CRT, continued fractions, challenge mode, more curves
+
+## Installation
+
+```bash
+pip install foxmath
+```
+
+Or from source:
+```bash
+git clone https://github.com/Abhrankan-Chakrabarti/foxmath.git
+cd foxmath
+pip install -e .
+```
+
+## Usage Examples
+
+```bash
+# Basic
+foxmath pi --terms 200
+foxmath legendre 5 17
+
+# Symlinks (optional)
+foxmath-ecadd --x1 1 --y1 2 --x2 3 --y2 4 --p 17
+
+# JSON output
+foxmath pi --terms 100 --json
+```
+
+### Example Output
+```
+π ≈ 3.1415926535897932384626433832795028841971693993751  (200 terms)
+```
+
+## Why FoxMath?
+Because math and cryptography are more fun when you can play with them instantly in the terminal — with the same reliability as FoxPipe and fox-vault.
+
+**Simple. Practical. Reliable.**
+
+## License
+MIT © Abhrankan Chakrabarti
+
+---
+
+**Star if you find it useful!** Issues and PRs welcome.

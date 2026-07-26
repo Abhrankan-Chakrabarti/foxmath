@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "foxmath"
+version = "0.1.0"
+description = "Minimalist CLI for math & cryptography exploration 🦊"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Abhrankan Chakrabarti", email = "abhrankan@gmail.com"}
+]
+keywords = ["math", "cryptography", "cli", "number-theory", "elliptic-curves"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Security :: Cryptography",
+]
+requires-python = ">=3.8"
+dependencies = []  # Pure stdlib for now
+
+[project.urls]
+"Homepage" = "https://github.com/Abhrankan-Chakrabarti/foxmath"
+"Repository" = "https://github.com/Abhrankan-Chakrabarti/foxmath"
+
+[project.scripts]
+foxmath = "foxmath.foxmath:main"
