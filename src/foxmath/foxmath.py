@@ -38,6 +38,8 @@ def catalan_pi_approx(terms: int = 100) -> Decimal:
 
 def ec_point_add(x1, y1, x2, y2, a, p):
     """Simple elliptic curve point addition over finite field y² = x³ + a x + b (mod p)"""
+    x1, y1, x2, y2 = x1 % p, y1 % p, x2 % p, y2 % p
+
     if x1 % p == x2 % p and (y1 + y2) % p == 0:
         raise ValueError(
             "Result is the point at infinity (P + (-P)); this simplified "
