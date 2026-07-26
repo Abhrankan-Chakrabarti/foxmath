@@ -112,17 +112,20 @@ def main():
         if cmd == "legendre" or args.command == "legendre":
             ls = legendre_symbol(args.a, args.p)
             result.update({"command": "legendre", "a": args.a, "p": args.p, "value": ls})
-            print(f"Legendre ({args.a}/{args.p}) = {ls}")
+            if not json_output:
+                print(f"Legendre ({args.a}/{args.p}) = {ls}")
 
         elif cmd == "pi" or args.command == "pi":
             approx = catalan_pi_approx(args.terms)
             result.update({"command": "pi", "terms": args.terms, "approx": str(approx)})
-            print(f"π ≈ {approx}  ({args.terms} terms)")
+            if not json_output:
+                print(f"π ≈ {approx}  ({args.terms} terms)")
 
         elif cmd == "ecadd" or args.command == "ecadd":
             x3, y3 = ec_point_add(args.x1, args.y1, args.x2, args.y2, args.a, args.p)
             result.update({"command": "ecadd", "result": (x3, y3)})
-            print(f"Result point: ({x3}, {y3})")
+            if not json_output:
+                print(f"Result point: ({x3}, {y3})")
 
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)

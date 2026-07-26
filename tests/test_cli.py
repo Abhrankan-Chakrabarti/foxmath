@@ -38,6 +38,15 @@ class TestJsonFlag(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertNotIn("{", out)
 
+    def test_json_output_is_pure_json_no_preamble(self):
+        # Regression check: --json used to still print the human-readable
+        # line first, breaking anything piping stdout into a JSON parser.
+        code, out, err = run("pi", "--terms", "20", "--json")
+        self.assertEqual(code, 0)
+        import json
+        parsed = json.loads(out)  # raises if there's any leading text
+        self.assertEqual(parsed["command"], "pi")
+
 
 class TestSymlinkInvocation(unittest.TestCase):
     def setUp(self):
