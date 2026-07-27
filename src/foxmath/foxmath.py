@@ -54,6 +54,28 @@ def ec_point_add(x1, y1, x2, y2, a, p):
     y3 = (lam * (x1 - x3) - y1) % p
     return x3, y3
 
+# Named curve presets: a, b, p, and the standard generator point G (if defined).
+CURVES = {
+    "secp256k1": {
+        "a": 0,
+        "b": 7,
+        "p": 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F,
+        "gx": 0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798,
+        "gy": 0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8,
+    },
+    "toy97": {  # small curve for quick hand-checkable examples: y^2 = x^3 + 2x + 3 (mod 97)
+        "a": 2,
+        "b": 3,
+        "p": 97,
+        "gx": 3,
+        "gy": 6,
+    },
+}
+
+def is_on_curve(x: int, y: int, a: int, b: int, p: int) -> bool:
+    """Check y^2 = x^3 + a*x + b (mod p)."""
+    return (y * y - (x ** 3 + a * x + b)) % p == 0
+
 def _extended_gcd(a: int, b: int):
     """Returns (g, x, y) such that a*x + b*y == g == gcd(a, b)."""
     old_r, r = a, b
@@ -171,12 +193,14 @@ def main():
 
     # Elliptic curve add
     ec = subparsers.add_parser("ecadd", help="Elliptic curve point addition")
-    ec.add_argument("--x1", type=int, required=True)
-    ec.add_argument("--y1", type=int, required=True)
-    ec.add_argument("--x2", type=int, required=True)
-    ec.add_argument("--y2", type=int, required=True)
-    ec.add_argument("--a", type=int, default=-3, help="Curve parameter a")
-    ec.add_argument("--p", type=int, required=True, help="Prime modulus")
+    ec.add_argument("--curve", choices=sorted(CURVES.keys()),
+                     help="Named curve (provides a, b, p, and generator G)")
+    ec.add_argument("--x1", type=int, help="Defaults to G's x if --curve is given")
+    ec.add_argument("--y1", type=int, help="Defaults to G's y if --curve is given")
+    ec.add_argument("--x2", type=int, help="Defaults to (x1,y1) if omitted (i.e. doubling)")
+    ec.add_argument("--y2", type=int, help="Defaults to (x1,y1) if omitted (i.e. doubling)")
+    ec.add_argument("--a", type=int, help="Curve parameter a (overrides --curve if given)")
+    ec.add_argument("--p", type=int, help="Prime modulus (overrides --curve if given)")
 
     # Chinese Remainder Theorem
     crt = subparsers.add_parser("crt", help="Solve a system of congruences x = r (mod m)")
@@ -207,10 +231,41 @@ def main():
                 print(f"π ≈ {approx}  ({args.terms} terms)")
 
         elif cmd == "ecadd" or args.command == "ecadd":
-            x3, y3 = ec_point_add(args.x1, args.y1, args.x2, args.y2, args.a, args.p)
-            result.update({"command": "ecadd", "result": (x3, y3)})
+            a, b = args.a, None
+            p = args.p
+            x1, y1 = args.x1, args.y1
+
+            if args.curve:
+                preset = CURVES[args.curve]
+                a = preset["a"] if a is None else a
+                p = preset["p"] if p is None else p
+                b = preset["b"]
+                if x1 is None:
+                    x1, y1 = preset["gx"], preset["gy"]
+            elif a is None:
+                a = -3  # historical default for manual (non-curve) mode
+
+            if a is None or p is None or x1 is None or y1 is None:
+                raise ValueError(
+                    "Provide --curve NAME, or at least --p --x1 --y1 manually "
+                    "(--a defaults to -3 if omitted)."
+                )
+
+            x2 = x1 if args.x2 is None else args.x2
+            y2 = y1 if args.y2 is None else args.y2
+
+            x3, y3 = ec_point_add(x1, y1, x2, y2, a, p)
+            result.update({
+                "command": "ecadd", "curve": args.curve,
+                "p1": [x1, y1], "p2": [x2, y2], "result": (x3, y3),
+            })
+            if b is not None:
+                result["result_on_curve"] = is_on_curve(x3, y3, a, b, p)
             if not json_output:
                 print(f"Result point: ({x3}, {y3})")
+                if b is not None:
+                    status = "✓ on curve" if result["result_on_curve"] else "✗ NOT on curve"
+                    print(f"  {status}")
 
         elif cmd == "crt" or args.command == "crt":
             x, m = crt_solve(args.r, args.m)

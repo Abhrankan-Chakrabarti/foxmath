@@ -110,6 +110,29 @@ class TestNormalUsage(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("point at infinity", err)
 
+    def test_ecadd_curve_secp256k1_defaults_to_doubling_generator(self):
+        code, out, err = run("ecadd", "--curve", "secp256k1")
+        self.assertEqual(code, 0)
+        self.assertIn("89565891926547004231252920425935692360644145829622209833684329913297188986597", out)
+        self.assertIn("on curve", out)
+
+    def test_ecadd_curve_manual_a_override(self):
+        # --a explicitly provided should override the curve preset's a.
+        code, out, err = run("ecadd", "--curve", "toy97", "--a", "2")
+        self.assertEqual(code, 0)
+
+    def test_ecadd_no_args_at_all_errors_clearly(self):
+        code, out, err = run("ecadd")
+        self.assertEqual(code, 1)
+        self.assertIn("Error", err)
+
+    def test_ecadd_backward_compatible_manual_call(self):
+        # Original documented usage: --a omitted, defaults to -3.
+        code, out, err = run("ecadd", "--x1", "1", "--y1", "2",
+                              "--x2", "3", "--y2", "4", "--p", "17")
+        self.assertEqual(code, 0)
+        self.assertIn("Result point: (14, 2)", out)
+
     def test_crt(self):
         code, out, err = run("crt", "--r", "2", "3", "2", "--m", "3", "5", "7")
         self.assertEqual(code, 0)

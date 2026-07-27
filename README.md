@@ -9,12 +9,13 @@ Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
 ## Features
 - Legendre symbol
 - Euler/Hermann Machin-like π approximation
-- Elliptic curve point addition (over finite fields)
+- Elliptic curve point addition (over finite fields), including
+  named curves (secp256k1) with on-curve result validation
 - Chinese Remainder Theorem solver (handles non-coprime moduli)
 - Continued fraction expansion and convergents
 - Symlink-friendly (foxmath-legendre, foxmath-pi, foxmath-ecadd, foxmath-crt, foxmath-cf)
 - JSON output mode
-- Coming soon: challenge mode, more curves
+- Coming soon: challenge mode
 
 ## Installation
 
@@ -51,6 +52,15 @@ foxmath-ecadd --x1 1 --y1 2 --x2 3 --y2 4 --p 17
 ```
 ```
 Result point: (14, 2)
+```
+
+```bash
+# Named curve (secp256k1) — computes 2G by default
+foxmath ecadd --curve secp256k1
+```
+```
+Result point: (89565891926547004231252920425935692360644145829622209833684329913297188986597, 12158399299693830322967808612713398636155367887041628176798871954788371653930)
+  ✓ on curve
 ```
 
 ```bash

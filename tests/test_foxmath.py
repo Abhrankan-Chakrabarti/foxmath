@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 
 from foxmath.foxmath import (
     legendre_symbol, euler_hermann_pi_approx, ec_point_add, crt_solve,
-    continued_fraction, cf_convergents,
+    continued_fraction, cf_convergents, CURVES, is_on_curve,
 )
 
 # Reference pi digits (mpmath, 250 dps of working precision), "3" + fractional digits.
@@ -150,6 +150,29 @@ class TestContinuedFractions(unittest.TestCase):
             convs = cf_convergents(cf)
             expected = Fraction(n, d)
             self.assertEqual(convs[-1], (expected.numerator, expected.denominator))
+
+
+class TestNamedCurves(unittest.TestCase):
+    def test_secp256k1_generator_is_on_curve(self):
+        c = CURVES["secp256k1"]
+        self.assertTrue(is_on_curve(c["gx"], c["gy"], c["a"], c["b"], c["p"]))
+
+    def test_secp256k1_doubling_matches_known_value(self):
+        # Cross-checked independently against the `ecdsa` library's
+        # SECP256k1.generator * 2.
+        c = CURVES["secp256k1"]
+        x2, y2 = ec_point_add(c["gx"], c["gy"], c["gx"], c["gy"], c["a"], c["p"])
+        self.assertEqual(
+            x2, 89565891926547004231252920425935692360644145829622209833684329913297188986597
+        )
+        self.assertEqual(
+            y2, 12158399299693830322967808612713398636155367887041628176798871954788371653930
+        )
+        self.assertTrue(is_on_curve(x2, y2, c["a"], c["b"], c["p"]))
+
+    def test_toy97_generator_is_on_curve(self):
+        c = CURVES["toy97"]
+        self.assertTrue(is_on_curve(c["gx"], c["gy"], c["a"], c["b"], c["p"]))
 
 
 if __name__ == "__main__":
