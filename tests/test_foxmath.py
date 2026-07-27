@@ -12,7 +12,7 @@ from decimal import Decimal
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
-from foxmath.foxmath import legendre_symbol, catalan_pi_approx, ec_point_add
+from foxmath.foxmath import legendre_symbol, euler_hermann_pi_approx, ec_point_add, crt_solve
 
 # Reference pi digits (mpmath, 250 dps of working precision), "3" + fractional digits.
 PI_REFERENCE = Decimal(
@@ -47,16 +47,16 @@ class TestLegendreSymbol(unittest.TestCase):
             legendre_symbol(3, 1)
 
 
-class TestCatalanPiApprox(unittest.TestCase):
+class TestEulerHermannPiApprox(unittest.TestCase):
     def test_converges_to_pi(self):
         # Regression check: this used to converge to 16*arctan(1/2) =~ 7.418,
         # not pi, due to a double-counted scaling factor.
-        approx = catalan_pi_approx(100)
+        approx = euler_hermann_pi_approx(100)
         self.assertLess(abs(approx - PI_REFERENCE), Decimal("1e-40"))
 
     def test_more_terms_is_more_accurate(self):
-        err_10 = abs(catalan_pi_approx(10) - PI_REFERENCE)
-        err_50 = abs(catalan_pi_approx(50) - PI_REFERENCE)
+        err_10 = abs(euler_hermann_pi_approx(10) - PI_REFERENCE)
+        err_50 = abs(euler_hermann_pi_approx(50) - PI_REFERENCE)
         self.assertLess(err_50, err_10)
 
 
@@ -80,6 +80,39 @@ class TestECPointAdd(unittest.TestCase):
     def test_point_plus_negation_raises_clear_error(self):
         with self.assertRaises(ValueError):
             ec_point_add(3, 6, 3, self.P - 6, self.A, self.P)
+
+
+class TestCRT(unittest.TestCase):
+    def test_classic_coprime_case(self):
+        x, m = crt_solve([2, 3, 2], [3, 5, 7])
+        self.assertEqual((x, m), (23, 105))
+        self.assertEqual(x % 3, 2)
+        self.assertEqual(x % 5, 3)
+        self.assertEqual(x % 7, 2)
+
+    def test_non_coprime_consistent(self):
+        x, m = crt_solve([2, 2], [4, 6])
+        self.assertEqual((x, m), (2, 12))
+
+    def test_non_coprime_inconsistent_raises(self):
+        with self.assertRaises(ValueError):
+            crt_solve([1, 2], [4, 6])
+
+    def test_single_congruence(self):
+        self.assertEqual(crt_solve([5], [11]), (5, 11))
+
+    def test_mismatched_lengths_raises(self):
+        with self.assertRaises(ValueError):
+            crt_solve([2, 3], [3, 5, 7])
+
+    def test_empty_raises(self):
+        with self.assertRaises(ValueError):
+            crt_solve([], [])
+
+    def test_negative_remainder_normalized(self):
+        x, m = crt_solve([-1, 3], [5, 7])
+        self.assertEqual(x % 5, 4)  # -1 mod 5 == 4
+        self.assertEqual(x % 7, 3)
 
 
 if __name__ == "__main__":

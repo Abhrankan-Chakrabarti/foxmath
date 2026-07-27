@@ -27,7 +27,7 @@ def _arctan_series(inv_n: Decimal, terms: int) -> Decimal:
         total += sign * inv_n**(2 * k + 1) / (2 * k + 1)
     return total
 
-def catalan_pi_approx(terms: int = 100) -> Decimal:
+def euler_hermann_pi_approx(terms: int = 100) -> Decimal:
     """
     Fast-converging π approximation via the Euler/Hermann Machin-like
     identity: pi/4 = arctan(1/2) + arctan(1/3).
@@ -53,6 +53,48 @@ def ec_point_add(x1, y1, x2, y2, a, p):
     x3 = (lam**2 - x1 - x2) % p
     y3 = (lam * (x1 - x3) - y1) % p
     return x3, y3
+
+def _extended_gcd(a: int, b: int):
+    """Returns (g, x, y) such that a*x + b*y == g == gcd(a, b)."""
+    old_r, r = a, b
+    old_s, s = 1, 0
+    old_t, t = 0, 1
+    while r != 0:
+        q = old_r // r
+        old_r, r = r, old_r - q * r
+        old_s, s = s, old_s - q * s
+        old_t, t = t, old_t - q * t
+    return old_r, old_s, old_t
+
+def _combine_crt(r1: int, m1: int, r2: int, m2: int):
+    """Combine x≡r1 (mod m1) and x≡r2 (mod m2) into a single x≡r (mod lcm(m1,m2))."""
+    g, p, _ = _extended_gcd(m1, m2)
+    if (r2 - r1) % g != 0:
+        raise ValueError(
+            f"No solution exists: moduli {m1} and {m2} are inconsistent "
+            f"for remainders {r1} and {r2}."
+        )
+    lcm = m1 // g * m2
+    x = (r1 + (r2 - r1) // g * p % (m2 // g) * m1) % lcm
+    return x, lcm
+
+def crt_solve(remainders, moduli):
+    """
+    Chinese Remainder Theorem, generalized to non-pairwise-coprime moduli.
+    Returns (x, m) such that x is the unique solution mod m = lcm(moduli),
+    or raises ValueError if the system is inconsistent.
+    """
+    if len(remainders) != len(moduli):
+        raise ValueError("remainders and moduli must have the same length")
+    if not remainders:
+        raise ValueError("need at least one congruence")
+    if any(m <= 0 for m in moduli):
+        raise ValueError("all moduli must be positive")
+
+    r, m = remainders[0] % moduli[0], moduli[0]
+    for ri, mi in zip(remainders[1:], moduli[1:]):
+        r, m = _combine_crt(r, m, ri % mi, mi)
+    return r, m
 
 # ------------------- CLI -------------------
 
@@ -92,7 +134,7 @@ def main():
     leg.add_argument("p", type=int, help="Odd prime p")
 
     # Pi
-    pi_cmd = subparsers.add_parser("pi", help="Catalan-inspired π approximation")
+    pi_cmd = subparsers.add_parser("pi", help="Euler/Hermann Machin-like π approximation")
     pi_cmd.add_argument("--terms", type=int, default=100)
 
     # Elliptic curve add
@@ -103,6 +145,11 @@ def main():
     ec.add_argument("--y2", type=int, required=True)
     ec.add_argument("--a", type=int, default=-3, help="Curve parameter a")
     ec.add_argument("--p", type=int, required=True, help="Prime modulus")
+
+    # Chinese Remainder Theorem
+    crt = subparsers.add_parser("crt", help="Solve a system of congruences x = r (mod m)")
+    crt.add_argument("--r", type=int, nargs="+", required=True, help="Remainders, e.g. --r 2 3 2")
+    crt.add_argument("--m", type=int, nargs="+", required=True, help="Moduli, e.g. --m 3 5 7")
 
     args = parser.parse_args(argv)
 
@@ -116,7 +163,7 @@ def main():
                 print(f"Legendre ({args.a}/{args.p}) = {ls}")
 
         elif cmd == "pi" or args.command == "pi":
-            approx = catalan_pi_approx(args.terms)
+            approx = euler_hermann_pi_approx(args.terms)
             result.update({"command": "pi", "terms": args.terms, "approx": str(approx)})
             if not json_output:
                 print(f"π ≈ {approx}  ({args.terms} terms)")
@@ -126,6 +173,12 @@ def main():
             result.update({"command": "ecadd", "result": (x3, y3)})
             if not json_output:
                 print(f"Result point: ({x3}, {y3})")
+
+        elif cmd == "crt" or args.command == "crt":
+            x, m = crt_solve(args.r, args.m)
+            result.update({"command": "crt", "r": args.r, "m": args.m, "x": x, "mod": m})
+            if not json_output:
+                print(f"x ≡ {x} (mod {m})")
 
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)

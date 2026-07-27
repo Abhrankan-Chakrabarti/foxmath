@@ -79,6 +79,12 @@ class TestSymlinkInvocation(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("Result point:", out)
 
+    def test_crt_symlink(self):
+        script = self._make_symlink_script("foxmath-crt")
+        code, out, err = run("--r", "2", "3", "2", "--m", "3", "5", "7", script=script)
+        self.assertEqual(code, 0)
+        self.assertIn("x ≡ 23 (mod 105)", out)
+
     def test_symlink_with_json(self):
         script = self._make_symlink_script("foxmath-legendre")
         code, out, err = run("2", "7", "--json", script=script)
@@ -97,6 +103,24 @@ class TestNormalUsage(unittest.TestCase):
                               "--x2", "3", "--y2", "91", "--a", "2", "--p", "97")
         self.assertEqual(code, 1)
         self.assertIn("point at infinity", err)
+
+    def test_crt(self):
+        code, out, err = run("crt", "--r", "2", "3", "2", "--m", "3", "5", "7")
+        self.assertEqual(code, 0)
+        self.assertIn("x ≡ 23 (mod 105)", out)
+
+    def test_crt_json_is_pure_json(self):
+        code, out, err = run("crt", "--r", "2", "3", "2", "--m", "3", "5", "7", "--json")
+        self.assertEqual(code, 0)
+        import json
+        parsed = json.loads(out)
+        self.assertEqual(parsed["x"], 23)
+        self.assertEqual(parsed["mod"], 105)
+
+    def test_crt_inconsistent_system_errors(self):
+        code, out, err = run("crt", "--r", "1", "2", "--m", "4", "6")
+        self.assertEqual(code, 1)
+        self.assertIn("inconsistent", err)
 
 
 if __name__ == "__main__":
