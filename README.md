@@ -11,9 +11,10 @@ Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
 - Euler/Hermann Machin-like π approximation
 - Elliptic curve point addition (over finite fields)
 - Chinese Remainder Theorem solver (handles non-coprime moduli)
-- Symlink-friendly (foxmath-legendre, foxmath-pi, foxmath-ecadd, foxmath-crt)
+- Continued fraction expansion and convergents
+- Symlink-friendly (foxmath-legendre, foxmath-pi, foxmath-ecadd, foxmath-crt, foxmath-cf)
 - JSON output mode
-- Coming soon: continued fractions, challenge mode, more curves
+- Coming soon: challenge mode, more curves
 
 ## Installation
 
@@ -58,6 +59,17 @@ foxmath crt --r 2 3 2 --m 3 5 7
 ```
 ```
 x ≡ 23 (mod 105)
+```
+
+```bash
+# Continued fraction expansion + convergents
+foxmath cf --num 355 --den 113
+```
+```
+[3; 7, 16]
+  3/1
+  22/7
+  355/113
 ```
 
 ```bash

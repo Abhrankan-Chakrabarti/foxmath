@@ -85,6 +85,12 @@ class TestSymlinkInvocation(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("x ≡ 23 (mod 105)", out)
 
+    def test_cf_symlink(self):
+        script = self._make_symlink_script("foxmath-cf")
+        code, out, err = run("--num", "355", "--den", "113", script=script)
+        self.assertEqual(code, 0)
+        self.assertIn("[3; 7, 16]", out)
+
     def test_symlink_with_json(self):
         script = self._make_symlink_script("foxmath-legendre")
         code, out, err = run("2", "7", "--json", script=script)
@@ -121,6 +127,25 @@ class TestNormalUsage(unittest.TestCase):
         code, out, err = run("crt", "--r", "1", "2", "--m", "4", "6")
         self.assertEqual(code, 1)
         self.assertIn("inconsistent", err)
+
+    def test_cf(self):
+        code, out, err = run("cf", "--num", "355", "--den", "113")
+        self.assertEqual(code, 0)
+        self.assertIn("[3; 7, 16]", out)
+        self.assertIn("355/113", out)
+
+    def test_cf_json_is_pure_json(self):
+        code, out, err = run("cf", "--num", "355", "--den", "113", "--json")
+        self.assertEqual(code, 0)
+        import json
+        parsed = json.loads(out)
+        self.assertEqual(parsed["cf"], [3, 7, 16])
+        self.assertEqual(parsed["convergents"][-1], [355, 113])
+
+    def test_cf_zero_denominator_errors(self):
+        code, out, err = run("cf", "--num", "5", "--den", "0")
+        self.assertEqual(code, 1)
+        self.assertIn("Error", err)
 
 
 if __name__ == "__main__":

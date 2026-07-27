@@ -12,7 +12,10 @@ from decimal import Decimal
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
-from foxmath.foxmath import legendre_symbol, euler_hermann_pi_approx, ec_point_add, crt_solve
+from foxmath.foxmath import (
+    legendre_symbol, euler_hermann_pi_approx, ec_point_add, crt_solve,
+    continued_fraction, cf_convergents,
+)
 
 # Reference pi digits (mpmath, 250 dps of working precision), "3" + fractional digits.
 PI_REFERENCE = Decimal(
@@ -113,6 +116,40 @@ class TestCRT(unittest.TestCase):
         x, m = crt_solve([-1, 3], [5, 7])
         self.assertEqual(x % 5, 4)  # -1 mod 5 == 4
         self.assertEqual(x % 7, 3)
+
+
+class TestContinuedFractions(unittest.TestCase):
+    def test_classic_pi_approximation(self):
+        cf = continued_fraction(355, 113)
+        self.assertEqual(cf, [3, 7, 16])
+        convs = cf_convergents(cf)
+        self.assertEqual(convs, [(3, 1), (22, 7), (355, 113)])
+
+    def test_convergents_reduce_to_final_fraction(self):
+        cf = continued_fraction(19, 7)
+        convs = cf_convergents(cf)
+        self.assertEqual(convs[-1], (19, 7))
+
+    def test_negative_numerator(self):
+        cf = continued_fraction(-19, 7)
+        convs = cf_convergents(cf)
+        self.assertEqual(convs[-1], (-19, 7))
+
+    def test_zero_denominator_raises(self):
+        with self.assertRaises(ValueError):
+            continued_fraction(5, 0)
+
+    def test_randomized_against_fractions_module(self):
+        import random
+        from fractions import Fraction
+        random.seed(42)
+        for _ in range(200):
+            n = random.randint(-10000, 10000)
+            d = random.randint(1, 10000)
+            cf = continued_fraction(n, d)
+            convs = cf_convergents(cf)
+            expected = Fraction(n, d)
+            self.assertEqual(convs[-1], (expected.numerator, expected.denominator))
 
 
 if __name__ == "__main__":

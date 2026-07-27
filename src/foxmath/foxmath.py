@@ -96,6 +96,38 @@ def crt_solve(remainders, moduli):
         r, m = _combine_crt(r, m, ri % mi, mi)
     return r, m
 
+def continued_fraction(num: int, den: int, max_terms: int = 100):
+    """
+    Continued fraction expansion [a0; a1, a2, ...] of num/den via the
+    Euclidean algorithm. Terminates naturally for any rational input.
+    """
+    if den == 0:
+        raise ValueError("denominator cannot be zero")
+    cf = []
+    n, d = num, den
+    while d != 0 and len(cf) < max_terms:
+        a = n // d
+        cf.append(a)
+        n, d = d, n - a * d
+    return cf
+
+def cf_convergents(cf):
+    """
+    Convergents (p_n, q_n) of a continued fraction, via the standard
+    recurrence h_n = a_n*h_(n-1) + h_(n-2), same for k_n, with
+    h_(-2)=0, h_(-1)=1, k_(-2)=1, k_(-1)=0.
+    """
+    convergents = []
+    h2, h1 = 0, 1
+    k2, k1 = 1, 0
+    for a in cf:
+        h = a * h1 + h2
+        k = a * k1 + k2
+        convergents.append((h, k))
+        h2, h1 = h1, h
+        k2, k1 = k1, k
+    return convergents
+
 # ------------------- CLI -------------------
 
 def get_command():
@@ -151,6 +183,12 @@ def main():
     crt.add_argument("--r", type=int, nargs="+", required=True, help="Remainders, e.g. --r 2 3 2")
     crt.add_argument("--m", type=int, nargs="+", required=True, help="Moduli, e.g. --m 3 5 7")
 
+    # Continued fractions
+    cf_cmd = subparsers.add_parser("cf", help="Continued fraction expansion and convergents")
+    cf_cmd.add_argument("--num", type=int, required=True, help="Numerator")
+    cf_cmd.add_argument("--den", type=int, required=True, help="Denominator")
+    cf_cmd.add_argument("--terms", type=int, default=100, help="Max terms to expand")
+
     args = parser.parse_args(argv)
 
     result = {"tool": "foxmath"}
@@ -179,6 +217,18 @@ def main():
             result.update({"command": "crt", "r": args.r, "m": args.m, "x": x, "mod": m})
             if not json_output:
                 print(f"x ≡ {x} (mod {m})")
+
+        elif cmd == "cf" or args.command == "cf":
+            cf = continued_fraction(args.num, args.den, args.terms)
+            convs = cf_convergents(cf)
+            result.update({
+                "command": "cf", "num": args.num, "den": args.den,
+                "cf": cf, "convergents": convs,
+            })
+            if not json_output:
+                print(f"[{cf[0]}; {', '.join(str(a) for a in cf[1:])}]")
+                for p, q in convs:
+                    print(f"  {p}/{q}")
 
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
