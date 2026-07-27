@@ -13,9 +13,11 @@ Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
   named curves (secp256k1) with on-curve result validation
 - Chinese Remainder Theorem solver (handles non-coprime moduli)
 - Continued fraction expansion and convergents
-- Symlink-friendly (foxmath-legendre, foxmath-pi, foxmath-ecadd, foxmath-crt, foxmath-cf)
+- Challenge/quiz mode — practice problems with scoring, or a
+  worksheet mode for self-study
+- Symlink-friendly (foxmath-legendre, foxmath-pi, foxmath-ecadd,
+  foxmath-crt, foxmath-cf, foxmath-challenge)
 - JSON output mode
-- Coming soon: challenge mode
 
 ## Installation
 
@@ -81,6 +83,20 @@ foxmath cf --num 355 --den 113
   22/7
   355/113
 ```
+
+```bash
+# Challenge/quiz mode — worksheet (no prompting)
+foxmath challenge --topic legendre --count 2 --seed 1 --reveal
+```
+```
+1. Legendre symbol (10/13)
+   Answer: 1
+2. Legendre symbol (3/7)
+   Answer: -1
+```
+
+Drop `--reveal` to answer interactively instead, with scoring at the end.
+`--topic` accepts `legendre`, `crt`, or `mixed` (default).
 
 ```bash
 # JSON output

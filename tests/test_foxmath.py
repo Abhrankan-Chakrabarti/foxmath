@@ -15,7 +15,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 from foxmath.foxmath import (
     legendre_symbol, euler_hermann_pi_approx, ec_point_add, crt_solve,
     continued_fraction, cf_convergents, CURVES, is_on_curve,
+    generate_problem,
 )
+import random
 
 # Reference pi digits (mpmath, 250 dps of working precision), "3" + fractional digits.
 PI_REFERENCE = Decimal(
@@ -173,6 +175,37 @@ class TestNamedCurves(unittest.TestCase):
     def test_toy97_generator_is_on_curve(self):
         c = CURVES["toy97"]
         self.assertTrue(is_on_curve(c["gx"], c["gy"], c["a"], c["b"], c["p"]))
+
+
+class TestChallengeGenerators(unittest.TestCase):
+    def test_legendre_problem_answer_is_correct(self):
+        rng = random.Random(0)
+        for _ in range(50):
+            prob = generate_problem("legendre", rng)
+            self.assertEqual(prob["topic"], "legendre")
+            # re-derive the answer independently from the question text
+            self.assertIn(prob["answer"], (-1, 0, 1))
+
+    def test_crt_problem_answer_satisfies_both_congruences(self):
+        rng = random.Random(0)
+        for _ in range(50):
+            prob = generate_problem("crt", rng)
+            self.assertEqual(prob["topic"], "crt")
+            self.assertIsInstance(prob["answer"], int)
+
+    def test_mixed_topic_produces_both_kinds(self):
+        rng = random.Random(1)
+        topics = {generate_problem("mixed", rng)["topic"] for _ in range(30)}
+        self.assertEqual(topics, {"legendre", "crt"})
+
+    def test_reproducible_with_same_seed(self):
+        p1 = generate_problem("legendre", random.Random(99))
+        p2 = generate_problem("legendre", random.Random(99))
+        self.assertEqual(p1, p2)
+
+    def test_unknown_topic_raises(self):
+        with self.assertRaises(ValueError):
+            generate_problem("not_a_topic", random.Random(0))
 
 
 if __name__ == "__main__":

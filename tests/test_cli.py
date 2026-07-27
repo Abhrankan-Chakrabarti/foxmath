@@ -13,10 +13,10 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src", "fox
 SCRIPT = os.path.join(ROOT, "foxmath.py")
 
 
-def run(*args, script=SCRIPT):
+def run(*args, script=SCRIPT, stdin_input=None):
     result = subprocess.run(
         [sys.executable, script, *args],
-        capture_output=True, text=True, timeout=15,
+        capture_output=True, text=True, timeout=15, input=stdin_input,
     )
     return result.returncode, result.stdout, result.stderr
 
@@ -90,6 +90,13 @@ class TestSymlinkInvocation(unittest.TestCase):
         code, out, err = run("--num", "355", "--den", "113", script=script)
         self.assertEqual(code, 0)
         self.assertIn("[3; 7, 16]", out)
+
+    def test_challenge_symlink(self):
+        script = self._make_symlink_script("foxmath-challenge")
+        code, out, err = run("--topic", "legendre", "--count", "2", "--seed", "1",
+                              "--reveal", script=script)
+        self.assertEqual(code, 0)
+        self.assertIn("Answer:", out)
 
     def test_symlink_with_json(self):
         script = self._make_symlink_script("foxmath-legendre")
@@ -167,6 +174,46 @@ class TestNormalUsage(unittest.TestCase):
 
     def test_cf_zero_denominator_errors(self):
         code, out, err = run("cf", "--num", "5", "--den", "0")
+        self.assertEqual(code, 1)
+        self.assertIn("Error", err)
+
+    def test_challenge_reveal_is_deterministic_with_seed(self):
+        code1, out1, err1 = run("challenge", "--topic", "legendre", "--count", "3",
+                                 "--seed", "42", "--reveal")
+        code2, out2, err2 = run("challenge", "--topic", "legendre", "--count", "3",
+                                 "--seed", "42", "--reveal")
+        self.assertEqual(code1, 0)
+        self.assertEqual(out1, out2)
+
+    def test_challenge_interactive_scores_correct_answers(self):
+        # Known answers for --topic legendre --seed 42 --count 3 (from reveal mode).
+        code, out, err = run("challenge", "--topic", "legendre", "--count", "3",
+                              "--seed", "42", stdin_input="-1\n-1\n1\n")
+        self.assertEqual(code, 0)
+        self.assertIn("Score: 3/3", out)
+
+    def test_challenge_interactive_scores_wrong_answers(self):
+        code, out, err = run("challenge", "--topic", "legendre", "--count", "3",
+                              "--seed", "42", stdin_input="0\n0\n0\n")
+        self.assertEqual(code, 0)
+        self.assertIn("Score: 0/3", out)
+
+    def test_challenge_interactive_handles_non_numeric_input(self):
+        code, out, err = run("challenge", "--topic", "legendre", "--count", "1",
+                              "--seed", "42", stdin_input="not-a-number\n")
+        self.assertEqual(code, 0)
+        self.assertIn("Score: 0/1", out)
+
+    def test_challenge_reveal_json(self):
+        code, out, err = run("challenge", "--topic", "crt", "--count", "2",
+                              "--seed", "1", "--reveal", "--json")
+        self.assertEqual(code, 0)
+        import json
+        parsed = json.loads(out)
+        self.assertEqual(len(parsed["problems"]), 2)
+
+    def test_challenge_zero_count_errors(self):
+        code, out, err = run("challenge", "--count", "0")
         self.assertEqual(code, 1)
         self.assertIn("Error", err)
 

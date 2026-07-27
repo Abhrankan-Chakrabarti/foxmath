@@ -7,7 +7,9 @@ One binary. Clean. Educational. Safe.
 import argparse
 import sys
 import json
+import random
 from decimal import Decimal, getcontext
+from math import gcd
 from pathlib import Path
 
 # ------------------- Math Functions -------------------
@@ -150,6 +152,46 @@ def cf_convergents(cf):
         k2, k1 = k1, k
     return convergents
 
+# ------------------- Challenge / Quiz Mode -------------------
+
+_SMALL_ODD_PRIMES = [3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47,
+                      53, 59, 61, 67, 71, 73, 79, 83, 89, 97]
+_CRT_MODULI_CANDIDATES = [3, 4, 5, 7, 9, 11, 13]
+
+def _generate_legendre_problem(rng: random.Random) -> dict:
+    p = rng.choice(_SMALL_ODD_PRIMES)
+    a = rng.randint(1, p - 1)
+    return {
+        "topic": "legendre",
+        "question": f"Legendre symbol ({a}/{p})",
+        "answer": legendre_symbol(a, p),
+    }
+
+def _generate_crt_problem(rng: random.Random) -> dict:
+    while True:
+        m1, m2 = rng.sample(_CRT_MODULI_CANDIDATES, 2)
+        if gcd(m1, m2) == 1:
+            break
+    r1, r2 = rng.randrange(m1), rng.randrange(m2)
+    x, m = crt_solve([r1, r2], [m1, m2])
+    return {
+        "topic": "crt",
+        "question": f"x ≡ {r1} (mod {m1}), x ≡ {r2} (mod {m2}); find x (0 ≤ x < {m})",
+        "answer": x,
+    }
+
+_TOPIC_GENERATORS = {
+    "legendre": _generate_legendre_problem,
+    "crt": _generate_crt_problem,
+}
+
+def generate_problem(topic: str, rng: random.Random) -> dict:
+    if topic == "mixed":
+        topic = rng.choice(list(_TOPIC_GENERATORS.keys()))
+    if topic not in _TOPIC_GENERATORS:
+        raise ValueError(f"Unknown challenge topic: {topic}")
+    return _TOPIC_GENERATORS[topic](rng)
+
 # ------------------- CLI -------------------
 
 def get_command():
@@ -212,6 +254,14 @@ def main():
     cf_cmd.add_argument("--num", type=int, required=True, help="Numerator")
     cf_cmd.add_argument("--den", type=int, required=True, help="Denominator")
     cf_cmd.add_argument("--terms", type=int, default=100, help="Max terms to expand")
+
+    # Challenge / quiz mode
+    challenge = subparsers.add_parser("challenge", help="Practice problems (Legendre, CRT)")
+    challenge.add_argument("--topic", choices=["legendre", "crt", "mixed"], default="mixed")
+    challenge.add_argument("--count", type=int, default=5, help="Number of problems")
+    challenge.add_argument("--seed", type=int, help="Random seed for reproducible problem sets")
+    challenge.add_argument("--reveal", action="store_true",
+                            help="Print problems with answers, no prompting (worksheet mode)")
 
     args = parser.parse_args(argv)
 
@@ -284,6 +334,48 @@ def main():
                 print(f"[{cf[0]}; {', '.join(str(a) for a in cf[1:])}]")
                 for p, q in convs:
                     print(f"  {p}/{q}")
+
+        elif cmd == "challenge" or args.command == "challenge":
+            if args.count < 1:
+                raise ValueError(f"--count must be >= 1 (got {args.count})")
+
+            rng = random.Random(args.seed)
+            problems = [generate_problem(args.topic, rng) for _ in range(args.count)]
+
+            if args.reveal:
+                result.update({"command": "challenge", "topic": args.topic, "problems": problems})
+                if not json_output:
+                    for i, prob in enumerate(problems, 1):
+                        print(f"{i}. {prob['question']}")
+                        print(f"   Answer: {prob['answer']}")
+            else:
+                score = 0
+                details = []
+                for i, prob in enumerate(problems, 1):
+                    if not json_output:
+                        print(f"{i}. {prob['question']}")
+                    try:
+                        raw = input("   Your answer: ")
+                    except EOFError:
+                        raw = ""
+                    try:
+                        user_answer = int(raw.strip())
+                    except ValueError:
+                        user_answer = None
+                    correct = user_answer == prob["answer"]
+                    score += correct
+                    details.append({**prob, "your_answer": user_answer, "correct": correct})
+                    if not json_output:
+                        if correct:
+                            print("   ✓ Correct!")
+                        else:
+                            print(f"   ✗ Incorrect (answer: {prob['answer']})")
+                result.update({
+                    "command": "challenge", "topic": args.topic,
+                    "score": score, "total": args.count, "details": details,
+                })
+                if not json_output:
+                    print(f"\nScore: {score}/{args.count}")
 
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
