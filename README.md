@@ -11,12 +11,14 @@ Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
 - Euler/Hermann Machin-like π approximation
 - Elliptic curve point addition (over finite fields), including
   named curves (secp256k1) with on-curve result validation
+- Elliptic curve scalar multiplication k·P (double-and-add), including
+  the point at infinity as a first-class result
 - Chinese Remainder Theorem solver (handles non-coprime moduli)
 - Continued fraction expansion and convergents
 - Challenge/quiz mode — practice problems with scoring, or a
   worksheet mode for self-study
 - Symlink-friendly (foxmath-legendre, foxmath-pi, foxmath-ecadd,
-  foxmath-crt, foxmath-cf, foxmath-challenge)
+  foxmath-ecmul, foxmath-crt, foxmath-cf, foxmath-challenge)
 - JSON output mode
 
 ## Installation
@@ -30,6 +32,14 @@ Or from source:
 git clone https://github.com/Abhrankan-Chakrabarti/foxmath.git
 cd foxmath
 pip install -e .
+```
+
+Check which version you have installed:
+```bash
+foxmath --version
+```
+```
+foxmath 0.6.1
 ```
 
 ## Usage Examples
@@ -66,6 +76,25 @@ Result point: (89565891926547004231252920425935692360644145829622209833684329913
 ```
 
 ```bash
+# Scalar multiplication — same curves, O(log k) double-and-add
+foxmath ecmul --curve toy193 --k 7
+```
+```
+Result point: (66, 24)
+  ✓ on curve
+```
+
+```bash
+# toy193: y² = x³ + x + 5 (mod 193), #E = 193 (prime) — small enough to
+# hand-verify, structured exactly like secp256k1. G = (1, 59).
+# k = 0 or a multiple of the group order lands on the identity:
+foxmath ecmul --curve toy193 --k 193
+```
+```
+Result: point at infinity (identity)
+```
+
+```bash
 # Chinese Remainder Theorem
 foxmath crt --r 2 3 2 --m 3 5 7
 ```
@@ -95,8 +124,18 @@ foxmath challenge --topic legendre --count 2 --seed 1 --reveal
    Answer: -1
 ```
 
+```bash
+# Baby-size discrete log: given G and Q = k·G, recover k.
+# Easy at this scale — the same problem at secp256k1's ~10^77 is why ECDSA works.
+foxmath challenge --topic ecdlp --count 1 --seed 9 --reveal
+```
+```
+1. On y² = x³ + 1x + 5 (mod 193) with G = (1, 59): find k (2 ≤ k ≤ 20) such that k·G = (60, 171)
+   Answer: 16
+```
+
 Drop `--reveal` to answer interactively instead, with scoring at the end.
-`--topic` accepts `legendre`, `crt`, or `mixed` (default).
+`--topic` accepts `legendre`, `crt`, `ecdlp`, or `mixed` (default).
 
 ```bash
 # JSON output
