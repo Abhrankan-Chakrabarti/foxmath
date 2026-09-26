@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "foxmath"
-version = "0.5.0"
+version = "0.6.0"
 description = "Minimalist CLI for math & cryptography exploration 🦊"
 readme = "README.md"
 license = {text = "MIT"}
@@ -31,6 +31,7 @@ foxmath = "foxmath.foxmath:main"
 foxmath-legendre = "foxmath.foxmath:main"
 foxmath-pi = "foxmath.foxmath:main"
 foxmath-ecadd = "foxmath.foxmath:main"
+foxmath-ecmul = "foxmath.foxmath:main"
 foxmath-crt = "foxmath.foxmath:main"
 foxmath-cf = "foxmath.foxmath:main"
 foxmath-challenge = "foxmath.foxmath:main"

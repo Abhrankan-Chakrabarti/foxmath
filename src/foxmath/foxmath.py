@@ -9,8 +9,16 @@ import sys
 import json
 import random
 from decimal import Decimal, getcontext
+from importlib import metadata
 from math import gcd
 from pathlib import Path
+
+def _package_version() -> str:
+    """Installed package version, falling back to 'unknown' when run from a bare checkout."""
+    try:
+        return metadata.version("foxmath")
+    except metadata.PackageNotFoundError:
+        return "unknown"
 
 # ------------------- Math Functions -------------------
 
@@ -72,11 +80,62 @@ CURVES = {
         "gx": 3,
         "gy": 6,
     },
+    "toy193": {  # teaching curve: y^2 = x^3 + x + 5 (mod 193); #E = 193 (prime),
+                 # so every non-identity point generates the whole group —
+                 # hand-checkable discrete-log experiments live here.
+        "a": 1,
+        "b": 5,
+        "p": 193,
+        "gx": 1,
+        "gy": 59,
+    },
 }
 
 def is_on_curve(x: int, y: int, a: int, b: int, p: int) -> bool:
     """Check y^2 = x^3 + a*x + b (mod p)."""
     return (y * y - (x ** 3 + a * x + b)) % p == 0
+
+def _ec_add_raw(P, Q, a, p):
+    """
+    Point addition with an explicit identity: None represents the point at
+    infinity. Used by ec_mul; ec_point_add above is the user-facing variant,
+    which raises on infinity instead of representing it.
+    """
+    if P is None:
+        return Q
+    if Q is None:
+        return P
+    x1, y1 = P
+    x2, y2 = Q
+    if x1 == x2 and (y1 + y2) % p == 0:
+        return None
+    if P == Q:
+        lam = (3 * x1 * x1 + a) * pow(2 * y1, -1, p) % p
+    else:
+        lam = (y2 - y1) * pow(x2 - x1, -1, p) % p
+    x3 = (lam * lam - x1 - x2) % p
+    return (x3, (lam * (x1 - x3) - y1) % p)
+
+def ec_mul(k: int, x: int, y: int, a: int, p):
+    """
+    Scalar multiplication k·P via double-and-add on y² = x³ + a x + b (mod p).
+    Returns (x, y), or None for the point at infinity (k ≡ 0 mod ord(P)).
+
+    Double-and-add: O(log k) group operations instead of k — this is exactly
+    why the forward direction (compute k·G) is easy while the reverse
+    (recover k from k·G, the discrete logarithm) is believed hard for large
+    groups. That asymmetry is the engine inside ECDSA and ECDH.
+    """
+    if k < 0:
+        raise ValueError("k must be non-negative")
+    result = None  # identity
+    addend = (x % p, y % p)
+    while k > 0:
+        if k & 1:
+            result = _ec_add_raw(result, addend, a, p)
+        addend = _ec_add_raw(addend, addend, a, p)
+        k >>= 1
+    return result
 
 def _extended_gcd(a: int, b: int):
     """Returns (g, x, y) such that a*x + b*y == g == gcd(a, b)."""
@@ -180,9 +239,31 @@ def _generate_crt_problem(rng: random.Random) -> dict:
         "answer": x,
     }
 
+_ECDLP_CURVE = "toy193"  # prime group order → every point is a generator
+
+def _generate_ecdlp_problem(rng: random.Random) -> dict:
+    """
+    A baby-size elliptic-curve discrete logarithm: given G and Q = k·G on the
+    teaching curve, recover k. With 2 ≤ k ≤ 20 it is solvable by hand through
+    repeated addition — which is precisely the lesson: on secp256k1 the same
+    search space is ~10^77, and brute force stops being an option.
+    """
+    c = CURVES[_ECDLP_CURVE]
+    k = rng.randint(2, 20)
+    qx, qy = ec_mul(k, c["gx"], c["gy"], c["a"], c["p"])
+    return {
+        "topic": "ecdlp",
+        "question": (
+            f"On y² = x³ + {c['a']}x + {c['b']} (mod {c['p']}) with G = "
+            f"({c['gx']}, {c['gy']}): find k (2 ≤ k ≤ 20) such that k·G = ({qx}, {qy})"
+        ),
+        "answer": k,
+    }
+
 _TOPIC_GENERATORS = {
     "legendre": _generate_legendre_problem,
     "crt": _generate_crt_problem,
+    "ecdlp": _generate_ecdlp_problem,
 }
 
 def generate_problem(topic: str, rng: random.Random) -> dict:
@@ -222,6 +303,7 @@ def main():
         argv = [cmd] + argv
 
     parser = argparse.ArgumentParser(description="FoxMath — Math & Crypto Explorer 🦊")
+    parser.add_argument("--version", action="version", version=f"foxmath {_package_version()}")
     subparsers = parser.add_subparsers(dest="command", required=not cmd)
 
     # Legendre
@@ -244,6 +326,16 @@ def main():
     ec.add_argument("--a", type=int, help="Curve parameter a (overrides --curve if given)")
     ec.add_argument("--p", type=int, help="Prime modulus (overrides --curve if given)")
 
+    # Elliptic curve scalar multiplication
+    ecm = subparsers.add_parser("ecmul", help="Elliptic curve scalar multiplication (k·P)")
+    ecm.add_argument("--curve", choices=sorted(CURVES.keys()),
+                     help="Named curve (provides a, b, p, and generator G)")
+    ecm.add_argument("--k", type=int, required=True, help="Scalar multiplier")
+    ecm.add_argument("--x", type=int, help="Point x (defaults to G's x if --curve is given)")
+    ecm.add_argument("--y", type=int, help="Point y (defaults to G's y if --curve is given)")
+    ecm.add_argument("--a", type=int, help="Curve parameter a (overrides --curve if given)")
+    ecm.add_argument("--p", type=int, help="Prime modulus (overrides --curve if given)")
+
     # Chinese Remainder Theorem
     crt = subparsers.add_parser("crt", help="Solve a system of congruences x = r (mod m)")
     crt.add_argument("--r", type=int, nargs="+", required=True, help="Remainders, e.g. --r 2 3 2")
@@ -257,7 +349,7 @@ def main():
 
     # Challenge / quiz mode
     challenge = subparsers.add_parser("challenge", help="Practice problems (Legendre, CRT)")
-    challenge.add_argument("--topic", choices=["legendre", "crt", "mixed"], default="mixed")
+    challenge.add_argument("--topic", choices=["legendre", "crt", "ecdlp", "mixed"], default="mixed")
     challenge.add_argument("--count", type=int, default=5, help="Number of problems")
     challenge.add_argument("--seed", type=int, help="Random seed for reproducible problem sets")
     challenge.add_argument("--reveal", action="store_true",
@@ -314,6 +406,43 @@ def main():
             if not json_output:
                 print(f"Result point: ({x3}, {y3})")
                 if b is not None:
+                    status = "✓ on curve" if result["result_on_curve"] else "✗ NOT on curve"
+                    print(f"  {status}")
+
+        elif cmd == "ecmul" or args.command == "ecmul":
+            a, b = args.a, None
+            p = args.p
+            x1, y1 = args.x, args.y
+
+            if args.curve:
+                preset = CURVES[args.curve]
+                a = preset["a"] if a is None else a
+                p = preset["p"] if p is None else p
+                b = preset["b"]
+                if x1 is None or y1 is None:
+                    x1, y1 = preset["gx"], preset["gy"]
+            elif a is None:
+                a = -3  # historical default for manual (non-curve) mode
+
+            if a is None or p is None or x1 is None or y1 is None:
+                raise ValueError(
+                    "Provide --curve NAME, or at least --p --x --y manually "
+                    "(--a defaults to -3 if omitted)."
+                )
+
+            R = ec_mul(args.k, x1, y1, a, p)
+            result.update({
+                "command": "ecmul", "curve": args.curve, "k": args.k,
+                "point": [x1, y1], "result": "infinity" if R is None else list(R),
+            })
+            if not json_output:
+                if R is None:
+                    print("Result: point at infinity (identity)")
+                else:
+                    print(f"Result point: ({R[0]}, {R[1]})")
+            if R is not None and b is not None:
+                result["result_on_curve"] = is_on_curve(R[0], R[1], a, b, p)
+                if not json_output:
                     status = "✓ on curve" if result["result_on_curve"] else "✗ NOT on curve"
                     print(f"  {status}")
 
