@@ -2,6 +2,8 @@
 
 **Minimalist CLI for math & cryptography exploration.**
 
+**More about me / other projects:** [abhrankan.netlify.app](https://abhrankan.netlify.app)
+
 One binary. Clean output. Zero footguns. Educational by design.
 
 Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
@@ -39,7 +41,7 @@ Check which version you have installed:
 foxmath --version
 ```
 ```
-foxmath 0.6.1
+foxmath 0.6.2
 ```
 
 ## Usage Examples

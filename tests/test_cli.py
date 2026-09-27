@@ -98,6 +98,12 @@ class TestSymlinkInvocation(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("Answer:", out)
 
+    def test_ecmul_symlink(self):
+        script = self._make_symlink_script("foxmath-ecmul")
+        code, out, err = run("--curve", "toy193", "--k", "7", script=script)
+        self.assertEqual(code, 0)
+        self.assertIn("Result point: (66, 24)", out)
+
     def test_symlink_with_json(self):
         script = self._make_symlink_script("foxmath-legendre")
         code, out, err = run("2", "7", "--json", script=script)
@@ -139,6 +145,58 @@ class TestNormalUsage(unittest.TestCase):
                               "--x2", "3", "--y2", "4", "--p", "17")
         self.assertEqual(code, 0)
         self.assertIn("Result point: (14, 2)", out)
+
+    def test_ecmul_readme_example_toy193(self):
+        # Exact usage/output shown in the README.
+        code, out, err = run("ecmul", "--curve", "toy193", "--k", "7")
+        self.assertEqual(code, 0)
+        self.assertIn("Result point: (66, 24)", out)
+        self.assertIn("on curve", out)
+
+    def test_ecmul_readme_example_identity(self):
+        code, out, err = run("ecmul", "--curve", "toy193", "--k", "193")
+        self.assertEqual(code, 0)
+        self.assertIn("point at infinity", out)
+
+    def test_ecmul_secp256k1_matches_known_doubling(self):
+        code, out, err = run("ecmul", "--curve", "secp256k1", "--k", "2")
+        self.assertEqual(code, 0)
+        self.assertIn("89565891926547004231252920425935692360644145829622209833684329913297188986597", out)
+
+    def test_ecmul_json_output(self):
+        code, out, err = run("ecmul", "--curve", "toy193", "--k", "7", "--json")
+        self.assertEqual(code, 0)
+        import json
+        parsed = json.loads(out)
+        self.assertEqual(parsed["result"], [66, 24])
+        self.assertTrue(parsed["result_on_curve"])
+
+    def test_ecmul_json_output_infinity(self):
+        code, out, err = run("ecmul", "--curve", "toy193", "--k", "193", "--json")
+        self.assertEqual(code, 0)
+        import json
+        parsed = json.loads(out)
+        self.assertEqual(parsed["result"], "infinity")
+
+    def test_ecmul_manual_mode_no_curve(self):
+        code, out, err = run("ecmul", "--p", "97", "--x", "3", "--y", "6",
+                              "--a", "2", "--k", "3")
+        self.assertEqual(code, 0)
+        self.assertIn("Result point:", out)
+
+    def test_ecmul_a_override(self):
+        code, out, err = run("ecmul", "--curve", "toy97", "--a", "2", "--k", "3")
+        self.assertEqual(code, 0)
+
+    def test_ecmul_missing_curve_and_incomplete_manual_args_errors(self):
+        code, out, err = run("ecmul", "--k", "5")
+        self.assertEqual(code, 1)
+        self.assertIn("Error", err)
+
+    def test_ecmul_negative_k_errors(self):
+        code, out, err = run("ecmul", "--curve", "toy193", "--k", "-5")
+        self.assertEqual(code, 1)
+        self.assertIn("Error", err)
 
     def test_crt(self):
         code, out, err = run("crt", "--r", "2", "3", "2", "--m", "3", "5", "7")
