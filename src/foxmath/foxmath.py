@@ -29,6 +29,54 @@ def legendre_symbol(a: int, p: int) -> int:
     res = pow(a, (p - 1) // 2, p)
     return 1 if res == 1 else (-1 if res == p - 1 else 0)
 
+def sqrt_mod(a: int, p: int) -> tuple:
+    """Return the square root(s) of a modulo an odd prime p."""
+    if p < 2 or p % 2 == 0:
+        raise ValueError("p must be an odd prime")
+
+    a %= p
+    symbol = legendre_symbol(a, p)
+    if symbol == 0:
+        return (0,)
+    if symbol == -1:
+        raise ValueError(f"{a} has no square root modulo {p}")
+
+    # For p ≡ 3 (mod 4), the root is a^(p+1)/4.
+    if p % 4 == 3:
+        root = pow(a, (p + 1) // 4, p)
+    else:
+        # Tonelli-Shanks: write p - 1 = q * 2^s with q odd.
+        q, s = p - 1, 0
+        while q % 2 == 0:
+            q //= 2
+            s += 1
+
+        non_residue = 2
+        while legendre_symbol(non_residue, p) != -1:
+            non_residue += 1
+
+        c = pow(non_residue, q, p)
+        root = pow(a, (q + 1) // 2, p)
+        t = pow(a, q, p)
+        m = s
+
+        while t != 1:
+            i = 1
+            t_squared = (t * t) % p
+            while t_squared != 1:
+                t_squared = (t_squared * t_squared) % p
+                i += 1
+                if i == m:
+                    raise ValueError(f"{a} has no square root modulo {p}")
+            b = pow(c, 1 << (m - i - 1), p)
+            root = (root * b) % p
+            t = (t * b * b) % p
+            c = (b * b) % p
+            m = i
+
+    other = (-root) % p
+    return tuple(sorted({root, other}))
+
 def _arctan_series(inv_n: Decimal, terms: int) -> Decimal:
     """arctan(1/n) via its Taylor series, evaluated to `terms` terms. `inv_n` is 1/n."""
     total = Decimal(0)
@@ -283,6 +331,17 @@ def get_command():
     return None
 
 def main():
+    if hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
+    if hasattr(sys.stderr, "reconfigure"):
+        try:
+            sys.stderr.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
+
     cmd = get_command()
 
     # Handle --json independently of argparse subparser scoping: a subparser's
@@ -310,6 +369,10 @@ def main():
     leg = subparsers.add_parser("legendre", help="Legendre symbol (a/p)")
     leg.add_argument("a", type=int, help="Integer a")
     leg.add_argument("p", type=int, help="Odd prime p")
+
+    sqrt = subparsers.add_parser("sqrtmod", help="Square root(s) modulo an odd prime")
+    sqrt.add_argument("a", type=int, help="Integer a")
+    sqrt.add_argument("p", type=int, help="Odd prime p")
 
     # Pi
     pi_cmd = subparsers.add_parser("pi", help="Euler/Hermann Machin-like π approximation")
@@ -365,6 +428,15 @@ def main():
             result.update({"command": "legendre", "a": args.a, "p": args.p, "value": ls})
             if not json_output:
                 print(f"Legendre ({args.a}/{args.p}) = {ls}")
+
+        elif cmd == "sqrtmod" or args.command == "sqrtmod":
+            roots = sqrt_mod(args.a, args.p)
+            result.update({"command": "sqrtmod", "a": args.a, "p": args.p, "roots": list(roots)})
+            if not json_output:
+                if len(roots) == 1:
+                    print(f"sqrt({args.a}) = {roots[0]} (mod {args.p})")
+                else:
+                    print(f"sqrt({args.a}) = +/-{roots[1]} (mod {args.p})")
 
         elif cmd == "pi" or args.command == "pi":
             approx = euler_hermann_pi_approx(args.terms)

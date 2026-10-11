@@ -16,7 +16,7 @@ SCRIPT = os.path.join(ROOT, "foxmath.py")
 def run(*args, script=SCRIPT, stdin_input=None):
     result = subprocess.run(
         [sys.executable, script, *args],
-        capture_output=True, text=True, timeout=15, input=stdin_input,
+        capture_output=True, text=True, encoding="utf-8", timeout=15, input=stdin_input,
     )
     return result.returncode, result.stdout, result.stderr
 
@@ -37,6 +37,16 @@ class TestJsonFlag(unittest.TestCase):
         code, out, err = run("legendre", "2", "7")
         self.assertEqual(code, 0)
         self.assertNotIn("{", out)
+
+    def test_sqrtmod(self):
+        code, out, err = run("sqrtmod", "10", "13")
+        self.assertEqual(code, 0)
+        self.assertIn("sqrt(10) = +/-7 (mod 13)", out)
+
+    def test_sqrtmod_json(self):
+        code, out, err = run("sqrtmod", "10", "13", "--json")
+        self.assertEqual(code, 0)
+        self.assertIn('"roots": [', out)
 
     def test_json_output_is_pure_json_no_preamble(self):
         # Regression check: --json used to still print the human-readable
@@ -65,6 +75,12 @@ class TestSymlinkInvocation(unittest.TestCase):
         code, out, err = run("2", "7", script=script)
         self.assertEqual(code, 0)
         self.assertIn("Legendre (2/7) = 1", out)
+
+    def test_sqrtmod_symlink(self):
+        script = self._make_symlink_script("foxmath-sqrtmod")
+        code, out, err = run("10", "13", script=script)
+        self.assertEqual(code, 0)
+        self.assertIn("sqrt(10) = +/-7 (mod 13)", out)
 
     def test_pi_symlink(self):
         script = self._make_symlink_script("foxmath-pi")
@@ -274,6 +290,16 @@ class TestNormalUsage(unittest.TestCase):
         code, out, err = run("challenge", "--count", "0")
         self.assertEqual(code, 1)
         self.assertIn("Error", err)
+
+    def test_sqrtmod_non_residue_errors(self):
+        code, out, err = run("sqrtmod", "5", "17")
+        self.assertEqual(code, 1)
+        self.assertIn("no square root", err)
+
+    def test_sqrtmod_zero(self):
+        code, out, err = run("sqrtmod", "0", "17")
+        self.assertEqual(code, 0)
+        self.assertIn("sqrt(0) = 0 (mod 17)", out)
 
 
 if __name__ == "__main__":

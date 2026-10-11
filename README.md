@@ -10,6 +10,7 @@ Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
 
 ## Features
 - Legendre symbol
+- Modular square root via Tonelli-Shanks (sqrtmod)
 - Euler/Hermann Machin-like π approximation
 - Elliptic curve point addition (over finite fields), including
   named curves (secp256k1) with on-curve result validation
@@ -19,8 +20,8 @@ Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
 - Continued fraction expansion and convergents
 - Challenge/quiz mode — practice problems with scoring, or a
   worksheet mode for self-study
-- Symlink-friendly (foxmath-legendre, foxmath-pi, foxmath-ecadd,
-  foxmath-ecmul, foxmath-crt, foxmath-cf, foxmath-challenge)
+- Symlink-friendly (foxmath-legendre, foxmath-sqrtmod, foxmath-pi,
+  foxmath-ecadd, foxmath-ecmul, foxmath-crt, foxmath-cf, foxmath-challenge)
 - JSON output mode
 
 ## Installation
@@ -41,7 +42,7 @@ Check which version you have installed:
 foxmath --version
 ```
 ```
-foxmath 0.6.2
+foxmath 0.7.0
 ```
 
 ## Usage Examples
@@ -59,6 +60,17 @@ foxmath legendre 5 17
 ```
 Legendre (5/17) = -1
 ```
+
+```bash
+foxmath sqrtmod 10 13
+```
+```
+sqrt(10) = +/-7 (mod 13)
+```
+
+`sqrtmod` uses the Tonelli-Shanks algorithm to find modular square roots
+when they exist. It reports an error when the input is a quadratic
+non-residue modulo the given odd prime.
 
 ```bash
 # Symlinks (optional)

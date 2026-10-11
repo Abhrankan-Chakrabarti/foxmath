@@ -13,7 +13,7 @@ from decimal import Decimal
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
 from foxmath.foxmath import (
-    legendre_symbol, euler_hermann_pi_approx, ec_point_add, ec_mul, crt_solve,
+    legendre_symbol, sqrt_mod, euler_hermann_pi_approx, ec_point_add, ec_mul, crt_solve,
     continued_fraction, cf_convergents, CURVES, is_on_curve,
     generate_problem,
 )
@@ -50,6 +50,48 @@ class TestLegendreSymbol(unittest.TestCase):
     def test_rejects_p_less_than_2(self):
         with self.assertRaises(ValueError):
             legendre_symbol(3, 1)
+
+
+class TestSqrtMod(unittest.TestCase):
+    def test_tonelli_shanks_returns_both_roots(self):
+        roots = sqrt_mod(10, 13)
+        self.assertEqual(roots, (6, 7))
+        self.assertTrue(all((root * root - 10) % 13 == 0 for root in roots))
+
+    def test_fast_path_for_prime_three_mod_four(self):
+        self.assertEqual(sqrt_mod(9, 11), (3, 8))
+
+    def test_zero_has_one_root(self):
+        self.assertEqual(sqrt_mod(0, 17), (0,))
+
+    def test_rejects_non_residue(self):
+        with self.assertRaises(ValueError):
+            sqrt_mod(5, 17)
+
+    def test_rejects_even_p(self):
+        with self.assertRaises(ValueError):
+            sqrt_mod(1, 2)
+
+    def test_rejects_p_less_than_2(self):
+        with self.assertRaises(ValueError):
+            sqrt_mod(1, 1)
+        with self.assertRaises(ValueError):
+            sqrt_mod(1, -5)
+
+    def test_normalizes_a_greater_than_p(self):
+        self.assertEqual(sqrt_mod(10 + 26, 13), (6, 7))
+
+    def test_negative_a(self):
+        self.assertEqual(sqrt_mod(-3, 13), (6, 7))
+
+    def test_larger_primes_tonelli_shanks(self):
+        roots_41 = sqrt_mod(8, 41)
+        self.assertEqual(roots_41, (7, 34))
+        self.assertTrue(all((r * r - 8) % 41 == 0 for r in roots_41))
+
+        roots_97 = sqrt_mod(2, 97)
+        self.assertEqual(roots_97, (14, 83))
+        self.assertTrue(all((r * r - 2) % 97 == 0 for r in roots_97))
 
 
 class TestEulerHermannPiApprox(unittest.TestCase):
