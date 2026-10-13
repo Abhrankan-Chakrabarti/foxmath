@@ -8,6 +8,7 @@ import argparse
 import sys
 import json
 import random
+from collections import Counter
 from decimal import Decimal, getcontext
 from importlib import metadata
 from math import gcd
@@ -60,6 +61,96 @@ def _is_probable_prime(n: int) -> bool:
 def is_prime(n: int) -> bool:
     """Deterministic Miller-Rabin primality test (exact for n < ~3.3e24)."""
     return _is_probable_prime(n)
+
+def _pollard_brent(n: int, rng: random.Random) -> int:
+    """Find a non-trivial factor of composite n using Pollard's rho with Brent's variant."""
+    if n % 2 == 0:
+        return 2
+    if is_prime(n):
+        return n
+
+    while True:
+        y = rng.randint(1, n - 1)
+        c = rng.randint(1, n - 1)
+        m = 128
+        g, r, q = 1, 1, 1
+        ys = y
+        while g == 1:
+            x = y
+            for _ in range(r):
+                y = (y * y + c) % n
+            k = 0
+            while k < r and g == 1:
+                ys = y
+                limit = min(m, r - k)
+                for _ in range(limit):
+                    y = (y * y + c) % n
+                    q = (q * abs(x - y)) % n
+                g = gcd(q, n)
+                k += limit
+            r *= 2
+
+        if g == n:
+            g = 1
+            while g == 1:
+                ys = (ys * ys + c) % n
+                g = gcd(abs(x - ys), n)
+            if g == n:
+                continue
+        return g
+
+def _factor_recursive(n: int, rng: random.Random, factors: list) -> None:
+    if n <= 1:
+        return
+    if is_prime(n):
+        factors.append(n)
+        return
+    d = _pollard_brent(n, rng)
+    _factor_recursive(d, rng, factors)
+    _factor_recursive(n // d, rng, factors)
+
+def factorize(n: int) -> list:
+    """Return sorted list of (prime, power) tuples for integer n >= 1.
+
+    Uses small-prime trial division followed by Pollard's rho (Brent's variant).
+    """
+    if not isinstance(n, int):
+        raise TypeError("n must be an integer")
+    if n < 1:
+        raise ValueError("n must be a positive integer >= 1")
+    if n == 1:
+        return []
+
+    factors = []
+    # Small prime trial division up to 100
+    for p in (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97):
+        while n % p == 0:
+            factors.append(p)
+            n //= p
+        if n == 1:
+            break
+
+    if n > 1:
+        if is_prime(n):
+            factors.append(n)
+        else:
+            rng = random.Random(n ^ 0x5DEECE66D)
+            _factor_recursive(n, rng, factors)
+
+    counts = Counter(factors)
+    return sorted(counts.items())
+
+def format_factorization(factors: list) -> str:
+    """Format [(p, power), ...] into 'p1^k1 * p2^k2' string."""
+    if not factors:
+        return "1"
+    parts = []
+    for p, power in factors:
+        if power == 1:
+            parts.append(str(p))
+        else:
+            parts.append(f"{p}^{power}")
+    return " * ".join(parts)
 
 def _require_odd_prime(p: int) -> None:
     """Enforce the contract the Legendre symbol and Tonelli-Shanks rely on.
@@ -383,11 +474,27 @@ def _generate_sqrtmod_problem(rng: random.Random) -> dict:
         "answer": r,
     }
 
+_FACTOR_PRIMES = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47]
+
+def _generate_factor_problem(rng: random.Random) -> dict:
+    count = rng.choice([2, 2, 2, 3])
+    chosen = [rng.choice(_FACTOR_PRIMES) for _ in range(count)]
+    n = 1
+    for p in chosen:
+        n *= p
+    min_p = min(chosen)
+    return {
+        "topic": "factor",
+        "question": f"Find the smallest prime factor of {n}",
+        "answer": min_p,
+    }
+
 _TOPIC_GENERATORS = {
     "legendre": _generate_legendre_problem,
     "crt": _generate_crt_problem,
     "ecdlp": _generate_ecdlp_problem,
     "sqrtmod": _generate_sqrtmod_problem,
+    "factor": _generate_factor_problem,
 }
 
 def generate_problem(topic: str, rng: random.Random) -> dict:
@@ -453,6 +560,9 @@ def main():
     prime_cmd = subparsers.add_parser("isprime", help="Deterministic Miller-Rabin primality test")
     prime_cmd.add_argument("n", type=int, help="Integer to test")
 
+    factor_cmd = subparsers.add_parser("factor", help="Prime factorization into prime powers")
+    factor_cmd.add_argument("n", type=int, help="Positive integer to factor (n >= 1)")
+
     # Pi
     pi_cmd = subparsers.add_parser("pi", help="Euler/Hermann Machin-like π approximation")
     pi_cmd.add_argument("--terms", type=int, default=100)
@@ -500,8 +610,8 @@ def main():
     minv_cmd.add_argument("m", type=int, help="Modulus m (> 1)")
 
     # Challenge / quiz mode
-    challenge = subparsers.add_parser("challenge", help="Practice problems (Legendre, CRT, SqrtMod)")
-    challenge.add_argument("--topic", choices=["legendre", "crt", "ecdlp", "sqrtmod", "mixed"], default="mixed")
+    challenge = subparsers.add_parser("challenge", help="Practice problems (Legendre, CRT, SqrtMod, Factor)")
+    challenge.add_argument("--topic", choices=["legendre", "crt", "ecdlp", "sqrtmod", "factor", "mixed"], default="mixed")
     challenge.add_argument("--count", type=int, default=5, help="Number of problems")
     challenge.add_argument("--seed", type=int, help="Random seed for reproducible problem sets")
     challenge.add_argument("--reveal", action="store_true",
@@ -536,6 +646,28 @@ def main():
                 else:
                     verdict = "prime" if prime else "composite"
                     print(f"{args.n} is {verdict}")
+
+        elif cmd == "factor" or args.command == "factor":
+            factors = factorize(args.n)
+            is_p = is_prime(args.n)
+            expr = format_factorization(factors)
+            prime_factors = [p for p, _ in factors]
+            factors_dict = [{"prime": p, "power": power} for p, power in factors]
+            result.update({
+                "command": "factor",
+                "n": args.n,
+                "factors": factors_dict,
+                "prime_factors": prime_factors,
+                "expression": expr,
+                "is_prime": is_p,
+            })
+            if not json_output:
+                if is_p:
+                    print(f"{args.n} is prime")
+                elif args.n == 1:
+                    print("1 has no prime factors")
+                else:
+                    print(f"{args.n} = {expr}")
 
         elif cmd == "pi" or args.command == "pi":
             approx = euler_hermann_pi_approx(args.terms)

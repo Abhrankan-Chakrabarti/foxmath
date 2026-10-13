@@ -88,6 +88,12 @@ class TestSymlinkInvocation(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("104729 is prime", out)
 
+    def test_factor_symlink(self):
+        script = self._make_symlink_script("foxmath-factor")
+        code, out, err = run("360", script=script)
+        self.assertEqual(code, 0)
+        self.assertIn("360 = 2^3 * 3^2 * 5", out)
+
     def test_egcd_symlink(self):
         script = self._make_symlink_script("foxmath-egcd")
         code, out, err = run("30", "50", script=script)
@@ -389,6 +395,48 @@ class TestNormalUsage(unittest.TestCase):
         code, out, err = run("challenge", "--topic", "sqrtmod", "--count", "2", "--seed", "42", "--reveal")
         self.assertEqual(code, 0)
         self.assertIn("square root", out)
+        self.assertIn("Answer:", out)
+
+    def test_factor_composite(self):
+        code, out, err = run("factor", "360")
+        self.assertEqual(code, 0)
+        self.assertIn("360 = 2^3 * 3^2 * 5", out)
+
+    def test_factor_prime(self):
+        code, out, err = run("factor", "13")
+        self.assertEqual(code, 0)
+        self.assertIn("13 is prime", out)
+
+    def test_factor_one(self):
+        code, out, err = run("factor", "1")
+        self.assertEqual(code, 0)
+        self.assertIn("1 has no prime factors", out)
+
+    def test_factor_negative_or_zero_errors(self):
+        code, out, err = run("factor", "0")
+        self.assertEqual(code, 1)
+        self.assertIn("positive integer >= 1", err)
+
+    def test_factor_json(self):
+        code, out, err = run("factor", "360", "--json")
+        self.assertEqual(code, 0)
+        import json
+        data = json.loads(out)
+        self.assertEqual(data["command"], "factor")
+        self.assertEqual(data["n"], 360)
+        self.assertEqual(data["expression"], "2^3 * 3^2 * 5")
+        self.assertEqual(data["prime_factors"], [2, 3, 5])
+        self.assertEqual(data["factors"], [
+            {"prime": 2, "power": 3},
+            {"prime": 3, "power": 2},
+            {"prime": 5, "power": 1},
+        ])
+        self.assertFalse(data["is_prime"])
+
+    def test_challenge_factor(self):
+        code, out, err = run("challenge", "--topic", "factor", "--count", "2", "--seed", "42", "--reveal")
+        self.assertEqual(code, 0)
+        self.assertIn("smallest prime factor", out)
         self.assertIn("Answer:", out)
 
 

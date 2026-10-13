@@ -12,6 +12,7 @@ Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
 - Legendre symbol
 - Modular square root via Tonelli-Shanks (sqrtmod)
 - Deterministic Miller-Rabin primality test (isprime)
+- Prime factorization via Pollard's rho & trial division (factor)
 - Extended Euclidean algorithm (egcd) & Bézout coefficients
 - Modular multiplicative inverse (modinv)
 - Euler/Hermann Machin-like π approximation
@@ -24,8 +25,8 @@ Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
 - Challenge/quiz mode — practice problems with scoring, or a
   worksheet mode for self-study
 - Symlink-friendly (foxmath-legendre, foxmath-sqrtmod, foxmath-isprime,
-  foxmath-egcd, foxmath-modinv, foxmath-pi, foxmath-ecadd, foxmath-ecmul,
-  foxmath-crt, foxmath-cf, foxmath-challenge)
+  foxmath-factor, foxmath-egcd, foxmath-modinv, foxmath-pi, foxmath-ecadd,
+  foxmath-ecmul, foxmath-crt, foxmath-cf, foxmath-challenge)
 - JSON output mode
 
 ## Installation
@@ -46,10 +47,17 @@ Check which version you have installed:
 foxmath --version
 ```
 ```
-foxmath 0.9.0
+foxmath 0.10.0
 ```
 
 ## Usage Examples
+
+```bash
+foxmath factor 360
+```
+```
+360 = 2^3 * 3^2 * 5
+```
 
 ```bash
 foxmath isprime 104729
@@ -181,7 +189,7 @@ foxmath challenge --topic ecdlp --count 1 --seed 9 --reveal
 ```
 
 Drop `--reveal` to answer interactively instead, with scoring at the end.
-`--topic` accepts `legendre`, `crt`, `ecdlp`, `sqrtmod`, or `mixed` (default).
+`--topic` accepts `legendre`, `crt`, `ecdlp`, `sqrtmod`, `factor`, or `mixed` (default).
 
 ```bash
 # JSON output

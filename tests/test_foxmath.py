@@ -17,6 +17,7 @@ from foxmath.foxmath import (
     euler_hermann_pi_approx, ec_point_add, ec_mul, crt_solve,
     continued_fraction, cf_convergents, CURVES, is_on_curve,
     generate_problem, _is_probable_prime,
+    factorize, format_factorization,
 )
 import random
 
@@ -397,6 +398,44 @@ class TestModInverse(unittest.TestCase):
             mod_inverse(1, 0)
 
 
+class TestFactorize(unittest.TestCase):
+    def test_prime_numbers(self):
+        self.assertEqual(factorize(2), [(2, 1)])
+        self.assertEqual(factorize(13), [(13, 1)])
+        self.assertEqual(factorize(104729), [(104729, 1)])
+
+    def test_composite_powers(self):
+        self.assertEqual(factorize(8), [(2, 3)])
+        self.assertEqual(factorize(360), [(2, 3), (3, 2), (5, 1)])
+        self.assertEqual(factorize(1000), [(2, 3), (5, 3)])
+
+    def test_semiprimes_large(self):
+        p1 = 1000003
+        p2 = 1000033
+        n = p1 * p2
+        self.assertEqual(factorize(n), [(p1, 1), (p2, 1)])
+
+    def test_mersenne_composite(self):
+        # 2^11 - 1 = 2047 = 23 * 89
+        self.assertEqual(factorize(2047), [(23, 1), (89, 1)])
+
+    def test_one(self):
+        self.assertEqual(factorize(1), [])
+
+    def test_invalid_input(self):
+        with self.assertRaises(ValueError):
+            factorize(0)
+        with self.assertRaises(ValueError):
+            factorize(-15)
+        with self.assertRaises(TypeError):
+            factorize("10")
+
+    def test_format_factorization(self):
+        self.assertEqual(format_factorization([]), "1")
+        self.assertEqual(format_factorization([(2, 3), (3, 2), (5, 1)]), "2^3 * 3^2 * 5")
+        self.assertEqual(format_factorization([(13, 1)]), "13")
+
+
 class TestChallengeGenerators(unittest.TestCase):
     def test_legendre_problem_answer_is_correct(self):
         rng = random.Random(0)
@@ -422,10 +461,18 @@ class TestChallengeGenerators(unittest.TestCase):
             self.assertEqual(prob["topic"], "crt")
             self.assertIsInstance(prob["answer"], int)
 
+    def test_factor_problem_answer_is_correct(self):
+        rng = random.Random(0)
+        for _ in range(50):
+            prob = generate_problem("factor", rng)
+            self.assertEqual(prob["topic"], "factor")
+            self.assertIsInstance(prob["answer"], int)
+            self.assertIn("Find the smallest prime factor of ", prob["question"])
+
     def test_mixed_topic_produces_all_kinds(self):
         rng = random.Random(1)
         topics = {generate_problem("mixed", rng)["topic"] for _ in range(60)}
-        self.assertEqual(topics, {"legendre", "crt", "ecdlp", "sqrtmod"})
+        self.assertEqual(topics, {"legendre", "crt", "ecdlp", "sqrtmod", "factor"})
 
     def test_reproducible_with_same_seed(self):
         p1 = generate_problem("legendre", random.Random(99))
