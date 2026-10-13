@@ -2,7 +2,7 @@
 
 **Minimalist CLI for math & cryptography exploration.**
 
-**More about me / other projects:** [abhrankan.netlify.app](https://abhrankan.netlify.app)
+**More about me / other projects:** [abhrankan.duckdns.org](https://abhrankan.duckdns.org)
 
 One binary. Clean output. Zero footguns. Educational by design.
 
