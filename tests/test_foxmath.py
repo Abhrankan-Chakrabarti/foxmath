@@ -13,7 +13,8 @@ from decimal import Decimal
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
 from foxmath.foxmath import (
-    legendre_symbol, sqrt_mod, is_prime, euler_hermann_pi_approx, ec_point_add, ec_mul, crt_solve,
+    legendre_symbol, sqrt_mod, is_prime, extended_gcd, mod_inverse,
+    euler_hermann_pi_approx, ec_point_add, ec_mul, crt_solve,
     continued_fraction, cf_convergents, CURVES, is_on_curve,
     generate_problem, _is_probable_prime,
 )
@@ -355,14 +356,64 @@ class TestNamedCurves(unittest.TestCase):
         self.assertTrue(is_on_curve(c["gx"], c["gy"], c["a"], c["b"], c["p"]))
 
 
+class TestExtendedGCD(unittest.TestCase):
+    def test_known_coprime(self):
+        g, x, y = extended_gcd(3, 5)
+        self.assertEqual(g, 1)
+        self.assertEqual(3 * x + 5 * y, 1)
+
+    def test_known_common_factor(self):
+        g, x, y = extended_gcd(30, 50)
+        self.assertEqual(g, 10)
+        self.assertEqual(30 * x + 50 * y, 10)
+
+    def test_negative_inputs(self):
+        g, x, y = extended_gcd(-30, 50)
+        self.assertEqual(g, 10)
+        self.assertEqual(-30 * x + 50 * y, 10)
+
+    def test_zero_arguments(self):
+        self.assertEqual(extended_gcd(0, 5), (5, 0, 1))
+        self.assertEqual(extended_gcd(5, 0), (5, 1, 0))
+
+
+class TestModInverse(unittest.TestCase):
+    def test_known_inverse(self):
+        self.assertEqual(mod_inverse(3, 11), 4)
+        self.assertEqual((3 * 4) % 11, 1)
+
+    def test_negative_a(self):
+        inv = mod_inverse(-3, 11)
+        self.assertEqual((-3 * inv) % 11, 1)
+
+    def test_non_coprime_raises(self):
+        with self.assertRaises(ValueError):
+            mod_inverse(6, 9)
+
+    def test_modulus_less_than_two_raises(self):
+        with self.assertRaises(ValueError):
+            mod_inverse(1, 1)
+        with self.assertRaises(ValueError):
+            mod_inverse(1, 0)
+
+
 class TestChallengeGenerators(unittest.TestCase):
     def test_legendre_problem_answer_is_correct(self):
         rng = random.Random(0)
         for _ in range(50):
             prob = generate_problem("legendre", rng)
             self.assertEqual(prob["topic"], "legendre")
-            # re-derive the answer independently from the question text
             self.assertIn(prob["answer"], (-1, 0, 1))
+
+    def test_sqrtmod_problem_answer_is_correct(self):
+        rng = random.Random(0)
+        for _ in range(50):
+            prob = generate_problem("sqrtmod", rng)
+            self.assertEqual(prob["topic"], "sqrtmod")
+            r = prob["answer"]
+            self.assertGreaterEqual(r, 1)
+            # Question is "Find the smaller positive square root of a modulo p..."
+            self.assertIn("Find the smaller positive square root of ", prob["question"])
 
     def test_crt_problem_answer_satisfies_both_congruences(self):
         rng = random.Random(0)
@@ -372,12 +423,9 @@ class TestChallengeGenerators(unittest.TestCase):
             self.assertIsInstance(prob["answer"], int)
 
     def test_mixed_topic_produces_all_kinds(self):
-        # mixed draws from every registered generator -- legendre, crt,
-        # and ecdlp (this assertion was stale: it predated ecdlp being
-        # added to _TOPIC_GENERATORS, and only checked for {legendre, crt}).
         rng = random.Random(1)
-        topics = {generate_problem("mixed", rng)["topic"] for _ in range(30)}
-        self.assertEqual(topics, {"legendre", "crt", "ecdlp"})
+        topics = {generate_problem("mixed", rng)["topic"] for _ in range(60)}
+        self.assertEqual(topics, {"legendre", "crt", "ecdlp", "sqrtmod"})
 
     def test_reproducible_with_same_seed(self):
         p1 = generate_problem("legendre", random.Random(99))

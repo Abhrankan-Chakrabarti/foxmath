@@ -12,6 +12,8 @@ Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
 - Legendre symbol
 - Modular square root via Tonelli-Shanks (sqrtmod)
 - Deterministic Miller-Rabin primality test (isprime)
+- Extended Euclidean algorithm (egcd) & Bézout coefficients
+- Modular multiplicative inverse (modinv)
 - Euler/Hermann Machin-like π approximation
 - Elliptic curve point addition (over finite fields), including
   named curves (secp256k1) with on-curve result validation
@@ -21,8 +23,9 @@ Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
 - Continued fraction expansion and convergents
 - Challenge/quiz mode — practice problems with scoring, or a
   worksheet mode for self-study
-- Symlink-friendly (foxmath-legendre, foxmath-sqrtmod, foxmath-isprime, foxmath-pi,
-  foxmath-ecadd, foxmath-ecmul, foxmath-crt, foxmath-cf, foxmath-challenge)
+- Symlink-friendly (foxmath-legendre, foxmath-sqrtmod, foxmath-isprime,
+  foxmath-egcd, foxmath-modinv, foxmath-pi, foxmath-ecadd, foxmath-ecmul,
+  foxmath-crt, foxmath-cf, foxmath-challenge)
 - JSON output mode
 
 ## Installation
@@ -43,7 +46,7 @@ Check which version you have installed:
 foxmath --version
 ```
 ```
-foxmath 0.8.0
+foxmath 0.9.0
 ```
 
 ## Usage Examples
@@ -86,6 +89,20 @@ sqrt(10) = +/-7 (mod 13)
 `sqrtmod` uses the Tonelli-Shanks algorithm to find modular square roots
 when they exist. It reports an error when the input is a quadratic
 non-residue modulo the given odd prime.
+
+```bash
+foxmath egcd 30 50
+```
+```
+gcd(30, 50) = 10 = 30*(2) + 50*(-1)
+```
+
+```bash
+foxmath modinv 3 11
+```
+```
+3^-1 ≡ 4 (mod 11)
+```
 
 ```bash
 # Symlinks (optional)
@@ -164,7 +181,7 @@ foxmath challenge --topic ecdlp --count 1 --seed 9 --reveal
 ```
 
 Drop `--reveal` to answer interactively instead, with scoring at the end.
-`--topic` accepts `legendre`, `crt`, `ecdlp`, or `mixed` (default).
+`--topic` accepts `legendre`, `crt`, `ecdlp`, `sqrtmod`, or `mixed` (default).
 
 ```bash
 # JSON output

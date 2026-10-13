@@ -88,6 +88,18 @@ class TestSymlinkInvocation(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("104729 is prime", out)
 
+    def test_egcd_symlink(self):
+        script = self._make_symlink_script("foxmath-egcd")
+        code, out, err = run("30", "50", script=script)
+        self.assertEqual(code, 0)
+        self.assertIn("gcd(30, 50) = 10", out)
+
+    def test_modinv_symlink(self):
+        script = self._make_symlink_script("foxmath-modinv")
+        code, out, err = run("3", "11", script=script)
+        self.assertEqual(code, 0)
+        self.assertIn("3^-1 ≡ 4 (mod 11)", out)
+
     def test_pi_symlink(self):
         script = self._make_symlink_script("foxmath-pi")
         code, out, err = run("--terms", "10", script=script)
@@ -340,6 +352,44 @@ class TestNormalUsage(unittest.TestCase):
         self.assertEqual(data["command"], "isprime")
         self.assertEqual(data["n"], 104729)
         self.assertTrue(data["is_prime"])
+
+    def test_egcd(self):
+        code, out, err = run("egcd", "30", "50")
+        self.assertEqual(code, 0)
+        self.assertIn("gcd(30, 50) = 10", out)
+        self.assertIn("30*(2) + 50*(-1)", out)
+
+    def test_egcd_json(self):
+        code, out, err = run("egcd", "30", "50", "--json")
+        self.assertEqual(code, 0)
+        import json
+        data = json.loads(out)
+        self.assertEqual(data["gcd"], 10)
+        self.assertEqual(data["x"], 2)
+        self.assertEqual(data["y"], -1)
+
+    def test_modinv(self):
+        code, out, err = run("modinv", "3", "11")
+        self.assertEqual(code, 0)
+        self.assertIn("3^-1 ≡ 4 (mod 11)", out)
+
+    def test_modinv_json(self):
+        code, out, err = run("modinv", "3", "11", "--json")
+        self.assertEqual(code, 0)
+        import json
+        data = json.loads(out)
+        self.assertEqual(data["inverse"], 4)
+
+    def test_modinv_non_coprime_errors(self):
+        code, out, err = run("modinv", "6", "9")
+        self.assertEqual(code, 1)
+        self.assertIn("no modular inverse", err)
+
+    def test_challenge_sqrtmod(self):
+        code, out, err = run("challenge", "--topic", "sqrtmod", "--count", "2", "--seed", "42", "--reveal")
+        self.assertEqual(code, 0)
+        self.assertIn("square root", out)
+        self.assertIn("Answer:", out)
 
 
 if __name__ == "__main__":

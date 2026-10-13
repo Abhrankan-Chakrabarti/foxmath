@@ -235,8 +235,8 @@ def ec_mul(k: int, x: int, y: int, a: int, p):
         k >>= 1
     return result
 
-def _extended_gcd(a: int, b: int):
-    """Returns (g, x, y) such that a*x + b*y == g == gcd(a, b)."""
+def extended_gcd(a: int, b: int) -> tuple:
+    """Returns (g, x, y) such that a*x + b*y == g == gcd(a, b), with g >= 0."""
     old_r, r = a, b
     old_s, s = 1, 0
     old_t, t = 0, 1
@@ -245,7 +245,20 @@ def _extended_gcd(a: int, b: int):
         old_r, r = r, old_r - q * r
         old_s, s = s, old_s - q * s
         old_t, t = t, old_t - q * t
+    if old_r < 0:
+        old_r, old_s, old_t = -old_r, -old_s, -old_t
     return old_r, old_s, old_t
+
+_extended_gcd = extended_gcd
+
+def mod_inverse(a: int, m: int) -> int:
+    """Compute the modular multiplicative inverse of a modulo m."""
+    if m <= 1:
+        raise ValueError("Modulus m must be greater than 1")
+    try:
+        return pow(a, -1, m)
+    except ValueError:
+        raise ValueError(f"{a} has no modular inverse modulo {m} (gcd({a}, {m}) != 1)")
 
 def _combine_crt(r1: int, m1: int, r2: int, m2: int):
     """Combine x≡r1 (mod m1) and x≡r2 (mod m2) into a single x≡r (mod lcm(m1,m2))."""
@@ -358,10 +371,23 @@ def _generate_ecdlp_problem(rng: random.Random) -> dict:
         "answer": k,
     }
 
+_SQRTMOD_PRIMES = [7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43]
+
+def _generate_sqrtmod_problem(rng: random.Random) -> dict:
+    p = rng.choice(_SQRTMOD_PRIMES)
+    r = rng.randint(2, (p - 1) // 2)
+    a = (r * r) % p
+    return {
+        "topic": "sqrtmod",
+        "question": f"Find the smaller positive square root of {a} modulo {p} (1 ≤ r ≤ {p // 2})",
+        "answer": r,
+    }
+
 _TOPIC_GENERATORS = {
     "legendre": _generate_legendre_problem,
     "crt": _generate_crt_problem,
     "ecdlp": _generate_ecdlp_problem,
+    "sqrtmod": _generate_sqrtmod_problem,
 }
 
 def generate_problem(topic: str, rng: random.Random) -> dict:
@@ -463,9 +489,19 @@ def main():
     cf_cmd.add_argument("--den", type=int, required=True, help="Denominator")
     cf_cmd.add_argument("--terms", type=int, default=100, help="Max terms to expand")
 
+    # Extended GCD
+    egcd_cmd = subparsers.add_parser("egcd", help="Extended Euclidean algorithm (Bézout's identity)")
+    egcd_cmd.add_argument("a", type=int, help="Integer a")
+    egcd_cmd.add_argument("b", type=int, help="Integer b")
+
+    # Modular Inverse
+    minv_cmd = subparsers.add_parser("modinv", help="Modular multiplicative inverse a^-1 (mod m)")
+    minv_cmd.add_argument("a", type=int, help="Integer a")
+    minv_cmd.add_argument("m", type=int, help="Modulus m (> 1)")
+
     # Challenge / quiz mode
-    challenge = subparsers.add_parser("challenge", help="Practice problems (Legendre, CRT)")
-    challenge.add_argument("--topic", choices=["legendre", "crt", "ecdlp", "mixed"], default="mixed")
+    challenge = subparsers.add_parser("challenge", help="Practice problems (Legendre, CRT, SqrtMod)")
+    challenge.add_argument("--topic", choices=["legendre", "crt", "ecdlp", "sqrtmod", "mixed"], default="mixed")
     challenge.add_argument("--count", type=int, default=5, help="Number of problems")
     challenge.add_argument("--seed", type=int, help="Random seed for reproducible problem sets")
     challenge.add_argument("--reveal", action="store_true",
@@ -598,6 +634,18 @@ def main():
                 print(f"[{cf[0]}; {', '.join(str(a) for a in cf[1:])}]")
                 for p, q in convs:
                     print(f"  {p}/{q}")
+
+        elif cmd == "egcd" or args.command == "egcd":
+            g, x, y = extended_gcd(args.a, args.b)
+            result.update({"command": "egcd", "a": args.a, "b": args.b, "gcd": g, "x": x, "y": y})
+            if not json_output:
+                print(f"gcd({args.a}, {args.b}) = {g} = {args.a}*({x}) + {args.b}*({y})")
+
+        elif cmd == "modinv" or args.command == "modinv":
+            inv = mod_inverse(args.a, args.m)
+            result.update({"command": "modinv", "a": args.a, "m": args.m, "inverse": inv})
+            if not json_output:
+                print(f"{args.a}^-1 ≡ {inv} (mod {args.m})")
 
         elif cmd == "challenge" or args.command == "challenge":
             if args.count < 1:
