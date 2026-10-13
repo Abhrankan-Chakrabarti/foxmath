@@ -11,6 +11,7 @@ Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
 ## Features
 - Legendre symbol
 - Modular square root via Tonelli-Shanks (sqrtmod)
+- Deterministic Miller-Rabin primality test (isprime)
 - Euler/Hermann Machin-like π approximation
 - Elliptic curve point addition (over finite fields), including
   named curves (secp256k1) with on-curve result validation
@@ -20,7 +21,7 @@ Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
 - Continued fraction expansion and convergents
 - Challenge/quiz mode — practice problems with scoring, or a
   worksheet mode for self-study
-- Symlink-friendly (foxmath-legendre, foxmath-sqrtmod, foxmath-pi,
+- Symlink-friendly (foxmath-legendre, foxmath-sqrtmod, foxmath-isprime, foxmath-pi,
   foxmath-ecadd, foxmath-ecmul, foxmath-crt, foxmath-cf, foxmath-challenge)
 - JSON output mode
 
@@ -42,10 +43,24 @@ Check which version you have installed:
 foxmath --version
 ```
 ```
-foxmath 0.7.1
+foxmath 0.8.0
 ```
 
 ## Usage Examples
+
+```bash
+foxmath isprime 104729
+```
+```
+104729 is prime
+```
+
+```bash
+foxmath isprime 561
+```
+```
+561 is composite
+```
 
 ```bash
 foxmath pi --terms 200

@@ -57,6 +57,10 @@ def _is_probable_prime(n: int) -> bool:
             return False
     return True
 
+def is_prime(n: int) -> bool:
+    """Deterministic Miller-Rabin primality test (exact for n < ~3.3e24)."""
+    return _is_probable_prime(n)
+
 def _require_odd_prime(p: int) -> None:
     """Enforce the contract the Legendre symbol and Tonelli-Shanks rely on.
 
@@ -420,6 +424,9 @@ def main():
     sqrt.add_argument("a", type=int, help="Integer a")
     sqrt.add_argument("p", type=int, help="Odd prime p")
 
+    prime_cmd = subparsers.add_parser("isprime", help="Deterministic Miller-Rabin primality test")
+    prime_cmd.add_argument("n", type=int, help="Integer to test")
+
     # Pi
     pi_cmd = subparsers.add_parser("pi", help="Euler/Hermann Machin-like π approximation")
     pi_cmd.add_argument("--terms", type=int, default=100)
@@ -483,6 +490,16 @@ def main():
                     print(f"sqrt({args.a}) = {roots[0]} (mod {args.p})")
                 else:
                     print(f"sqrt({args.a}) = +/-{roots[1]} (mod {args.p})")
+
+        elif cmd == "isprime" or args.command == "isprime":
+            prime = is_prime(args.n)
+            result.update({"command": "isprime", "n": args.n, "is_prime": prime})
+            if not json_output:
+                if args.n < 2:
+                    print(f"{args.n} is not prime")
+                else:
+                    verdict = "prime" if prime else "composite"
+                    print(f"{args.n} is {verdict}")
 
         elif cmd == "pi" or args.command == "pi":
             approx = euler_hermann_pi_approx(args.terms)

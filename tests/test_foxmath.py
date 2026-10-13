@@ -13,7 +13,7 @@ from decimal import Decimal
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
 from foxmath.foxmath import (
-    legendre_symbol, sqrt_mod, euler_hermann_pi_approx, ec_point_add, ec_mul, crt_solve,
+    legendre_symbol, sqrt_mod, is_prime, euler_hermann_pi_approx, ec_point_add, ec_mul, crt_solve,
     continued_fraction, cf_convergents, CURVES, is_on_curve,
     generate_problem, _is_probable_prime,
 )
@@ -124,6 +124,13 @@ class TestPrimality(unittest.TestCase):
 
     def test_mersenne_prime(self):
         self.assertTrue(_is_probable_prime(2147483647))
+
+    def test_is_prime_public_api(self):
+        self.assertTrue(is_prime(104729))
+        self.assertFalse(is_prime(561))
+        self.assertFalse(is_prime(1))
+        self.assertFalse(is_prime(0))
+        self.assertFalse(is_prime(-7))
 
 
 class TestEulerHermannPiApprox(unittest.TestCase):

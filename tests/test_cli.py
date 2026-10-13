@@ -82,6 +82,12 @@ class TestSymlinkInvocation(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("sqrt(10) = +/-7 (mod 13)", out)
 
+    def test_isprime_symlink(self):
+        script = self._make_symlink_script("foxmath-isprime")
+        code, out, err = run("104729", script=script)
+        self.assertEqual(code, 0)
+        self.assertIn("104729 is prime", out)
+
     def test_pi_symlink(self):
         script = self._make_symlink_script("foxmath-pi")
         code, out, err = run("--terms", "10", script=script)
@@ -310,6 +316,30 @@ class TestNormalUsage(unittest.TestCase):
         code, out, err = run("sqrtmod", "2", "9")
         self.assertEqual(code, 1)
         self.assertIn("p must be an odd prime", err)
+
+    def test_isprime_prime(self):
+        code, out, err = run("isprime", "104729")
+        self.assertEqual(code, 0)
+        self.assertIn("104729 is prime", out)
+
+    def test_isprime_composite(self):
+        code, out, err = run("isprime", "561")
+        self.assertEqual(code, 0)
+        self.assertIn("561 is composite", out)
+
+    def test_isprime_less_than_two(self):
+        code, out, err = run("isprime", "1")
+        self.assertEqual(code, 0)
+        self.assertIn("1 is not prime", out)
+
+    def test_isprime_json(self):
+        code, out, err = run("isprime", "104729", "--json")
+        self.assertEqual(code, 0)
+        import json
+        data = json.loads(out)
+        self.assertEqual(data["command"], "isprime")
+        self.assertEqual(data["n"], 104729)
+        self.assertTrue(data["is_prime"])
 
 
 if __name__ == "__main__":
