@@ -301,6 +301,16 @@ class TestNormalUsage(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("sqrt(0) = 0 (mod 17)", out)
 
+    def test_legendre_composite_p_errors(self):
+        code, out, err = run("legendre", "2", "9")
+        self.assertEqual(code, 1)
+        self.assertIn("p must be an odd prime", err)
+
+    def test_sqrtmod_composite_p_errors(self):
+        code, out, err = run("sqrtmod", "2", "9")
+        self.assertEqual(code, 1)
+        self.assertIn("p must be an odd prime", err)
+
 
 if __name__ == "__main__":
     unittest.main()

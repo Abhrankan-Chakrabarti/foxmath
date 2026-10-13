@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 from foxmath.foxmath import (
     legendre_symbol, sqrt_mod, euler_hermann_pi_approx, ec_point_add, ec_mul, crt_solve,
     continued_fraction, cf_convergents, CURVES, is_on_curve,
-    generate_problem,
+    generate_problem, _is_probable_prime,
 )
 import random
 
@@ -50,6 +50,12 @@ class TestLegendreSymbol(unittest.TestCase):
     def test_rejects_p_less_than_2(self):
         with self.assertRaises(ValueError):
             legendre_symbol(3, 1)
+
+    def test_rejects_composite_odd_p(self):
+        for comp in (9, 15, 21, 25, 27, 33, 35, 561):
+            with self.subTest(p=comp):
+                with self.assertRaises(ValueError):
+                    legendre_symbol(2, comp)
 
 
 class TestSqrtMod(unittest.TestCase):
@@ -92,6 +98,32 @@ class TestSqrtMod(unittest.TestCase):
         roots_97 = sqrt_mod(2, 97)
         self.assertEqual(roots_97, (14, 83))
         self.assertTrue(all((r * r - 2) % 97 == 0 for r in roots_97))
+
+    def test_rejects_composite_odd_p(self):
+        for comp in (9, 15, 25, 561):
+            with self.subTest(p=comp):
+                with self.assertRaises(ValueError):
+                    sqrt_mod(4, comp)
+
+
+class TestPrimality(unittest.TestCase):
+    def test_small_primes(self):
+        for p in (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 97, 193):
+            with self.subTest(p=p):
+                self.assertTrue(_is_probable_prime(p))
+
+    def test_small_composites(self):
+        for c in (0, 1, 4, 6, 8, 9, 10, 12, 14, 15, 16, 18, 20, 21, 25, 27):
+            with self.subTest(c=c):
+                self.assertFalse(_is_probable_prime(c))
+
+    def test_carmichael_numbers_rejected(self):
+        for cn in (561, 1105, 1729):
+            with self.subTest(cn=cn):
+                self.assertFalse(_is_probable_prime(cn))
+
+    def test_mersenne_prime(self):
+        self.assertTrue(_is_probable_prime(2147483647))
 
 
 class TestEulerHermannPiApprox(unittest.TestCase):

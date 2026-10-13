@@ -22,20 +22,66 @@ def _package_version() -> str:
 
 # ------------------- Math Functions -------------------
 
-def legendre_symbol(a: int, p: int) -> int:
-    """Compute Legendre symbol (a/p)"""
-    if p < 2 or p % 2 == 0:
+# First 13 primes. As Miller-Rabin bases they make the test *deterministic*
+# for every n below 3,317,044,064,679,887,385,961,981 (~3.3e24); 12 bases
+# would not be enough (399165290221 * 798330580441, ~3.2e23, fools them).
+_PRIME_TEST_BASES = (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41)
+
+def _is_probable_prime(n: int) -> bool:
+    """Miller-Rabin primality test.
+
+    Exact for n < ~3.3e24. Above that it is a strong probable-prime test:
+    ordinary composites essentially never pass, but a composite built
+    specifically to fool these 13 bases could.
+    """
+    if n < 2:
+        return False
+    for sp in _PRIME_TEST_BASES:
+        if n == sp:
+            return True
+        if n % sp == 0:
+            return False
+    d, r = n - 1, 0
+    while d % 2 == 0:
+        d //= 2
+        r += 1
+    for a in _PRIME_TEST_BASES:
+        x = pow(a, d, n)
+        if x == 1 or x == n - 1:
+            continue
+        for _ in range(r - 1):
+            x = x * x % n
+            if x == n - 1:
+                break
+        else:
+            return False
+    return True
+
+def _require_odd_prime(p: int) -> None:
+    """Enforce the contract the Legendre symbol and Tonelli-Shanks rely on.
+
+    Euler's criterion is only meaningful for a prime modulus. On a composite
+    it returns garbage, and Tonelli-Shanks' search for a non-residue can loop
+    forever (mod 9 or mod 561, for example, there is none to find).
+    """
+    if p < 2 or p % 2 == 0 or not _is_probable_prime(p):
         raise ValueError("p must be an odd prime")
+
+def _legendre_unchecked(a: int, p: int) -> int:
     res = pow(a, (p - 1) // 2, p)
     return 1 if res == 1 else (-1 if res == p - 1 else 0)
 
+def legendre_symbol(a: int, p: int) -> int:
+    """Compute Legendre symbol (a/p). p must be an odd prime."""
+    _require_odd_prime(p)
+    return _legendre_unchecked(a, p)
+
 def sqrt_mod(a: int, p: int) -> tuple:
     """Return the square root(s) of a modulo an odd prime p."""
-    if p < 2 or p % 2 == 0:
-        raise ValueError("p must be an odd prime")
+    _require_odd_prime(p)
 
     a %= p
-    symbol = legendre_symbol(a, p)
+    symbol = _legendre_unchecked(a, p)
     if symbol == 0:
         return (0,)
     if symbol == -1:
@@ -52,7 +98,7 @@ def sqrt_mod(a: int, p: int) -> tuple:
             s += 1
 
         non_residue = 2
-        while legendre_symbol(non_residue, p) != -1:
+        while _legendre_unchecked(non_residue, p) != -1:
             non_residue += 1
 
         c = pow(non_residue, q, p)
