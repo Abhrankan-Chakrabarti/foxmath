@@ -50,7 +50,7 @@ Check which version you have installed:
 foxmath --version
 ```
 ```
-foxmath 0.11.0
+foxmath 0.11.1
 ```
 
 ## Usage Examples
