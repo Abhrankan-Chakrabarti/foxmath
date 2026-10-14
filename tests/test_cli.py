@@ -131,6 +131,26 @@ class TestSymlinkInvocation(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("tau(12) = 6", out)
 
+    def test_jacobi_symlink(self):
+        script = self._make_symlink_script("foxmath-jacobi")
+        code, out, err = run("10", "13", script=script)
+        self.assertEqual(code, 0)
+        self.assertIn("Jacobi (10/13) = 1", out)
+
+    def test_solovay_symlink(self):
+        script = self._make_symlink_script("foxmath-solovay")
+        code, out, err = run("104729", "--rounds", "10", script=script)
+        self.assertEqual(code, 0)
+        self.assertIn("104729 is probably prime (Solovay-Strassen, 10 rounds)", out)
+
+    def test_repl_symlink(self):
+        script = self._make_symlink_script("foxmath-repl")
+        code, out, err = run(script=script, stdin_input="print(jacobi_symbol(10, 13))\nexit()\n")
+        self.assertEqual(code, 0)
+        self.assertIn("FoxMath", out)
+        self.assertIn("Interactive REPL", out)
+        self.assertIn("1", out)
+
     def test_egcd_symlink(self):
         script = self._make_symlink_script("foxmath-egcd")
         code, out, err = run("30", "50", script=script)
@@ -616,6 +636,63 @@ class TestNormalUsage(unittest.TestCase):
         code, out, err = run("challenge", "--topic", "dlog", "--count", "2", "--seed", "42", "--reveal")
         self.assertEqual(code, 0)
         self.assertIn("such that", out)
+        self.assertIn("Answer:", out)
+
+    def test_jacobi(self):
+        code, out, err = run("jacobi", "10", "13")
+        self.assertEqual(code, 0)
+        self.assertIn("Jacobi (10/13) = 1", out)
+
+    def test_jacobi_json(self):
+        code, out, err = run("jacobi", "10", "13", "--json")
+        self.assertEqual(code, 0)
+        import json
+        data = json.loads(out)
+        self.assertEqual(data["command"], "jacobi")
+        self.assertEqual(data["a"], 10)
+        self.assertEqual(data["n"], 13)
+        self.assertEqual(data["value"], 1)
+
+    def test_jacobi_even_modulus_error(self):
+        code, out, err = run("jacobi", "2", "8")
+        self.assertEqual(code, 1)
+        self.assertIn("positive odd integer", err)
+
+    def test_solovay_prime(self):
+        code, out, err = run("solovay", "104729", "--rounds", "15")
+        self.assertEqual(code, 0)
+        self.assertIn("104729 is probably prime (Solovay-Strassen, 15 rounds)", out)
+
+    def test_solovay_prime_small(self):
+        code, out, err = run("solovay", "3")
+        self.assertEqual(code, 0)
+        self.assertIn("3 is prime", out)
+
+    def test_solovay_composite(self):
+        code, out, err = run("solovay", "561")
+        self.assertEqual(code, 0)
+        self.assertIn("561 is composite", out)
+
+    def test_solovay_json(self):
+        code, out, err = run("solovay", "17", "--json")
+        self.assertEqual(code, 0)
+        import json
+        data = json.loads(out)
+        self.assertEqual(data["command"], "solovay")
+        self.assertEqual(data["n"], 17)
+        self.assertEqual(data["is_prime"], True)
+
+    def test_repl(self):
+        code, out, err = run("repl", stdin_input="print(jacobi_symbol(2, 9))\nexit()\n")
+        self.assertEqual(code, 0)
+        self.assertIn("FoxMath", out)
+        self.assertIn("Interactive REPL", out)
+        self.assertIn("1", out)
+
+    def test_challenge_jacobi(self):
+        code, out, err = run("challenge", "--topic", "jacobi", "--count", "3", "--seed", "42", "--reveal")
+        self.assertEqual(code, 0)
+        self.assertIn("Jacobi symbol (", out)
         self.assertIn("Answer:", out)
 
 

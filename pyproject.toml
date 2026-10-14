@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "foxmath"
-version = "0.12.1"
+version = "0.13.0"
 description = "Minimalist CLI for math & cryptography exploration 🦊"
 readme = "README.md"
 license = {text = "MIT"}
@@ -29,6 +29,9 @@ dependencies = []  # Pure stdlib for now
 [project.scripts]
 foxmath = "foxmath.foxmath:main"
 foxmath-legendre = "foxmath.foxmath:main"
+foxmath-jacobi = "foxmath.foxmath:main"
+foxmath-solovay = "foxmath.foxmath:main"
+foxmath-repl = "foxmath.foxmath:main"
 foxmath-sqrtmod = "foxmath.foxmath:main"
 foxmath-isprime = "foxmath.foxmath:main"
 foxmath-factor = "foxmath.foxmath:main"

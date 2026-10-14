@@ -331,6 +331,70 @@ def legendre_symbol(a: int, p: int) -> int:
     _require_odd_prime(p)
     return _legendre_unchecked(a, p)
 
+def jacobi_symbol(a: int, n: int) -> int:
+    """Compute the Jacobi symbol (a/n) for integer a and positive odd integer n.
+
+    Generalizes the Legendre symbol to any odd positive integer n via reciprocity
+    without factoring n. Returns 1, -1, or 0 (if gcd(a, n) > 1).
+    Raises TypeError if a or n is not an integer.
+    Raises ValueError if n <= 0 or n is even.
+    """
+    if not isinstance(a, int) or not isinstance(n, int):
+        raise TypeError("a and n must be integers")
+    if n <= 0 or n % 2 == 0:
+        raise ValueError("n must be a positive odd integer")
+
+    a %= n
+    result = 1
+
+    while a != 0:
+        while a % 2 == 0:
+            a //= 2
+            if n % 8 in (3, 5):
+                result = -result
+
+        if a % 4 == 3 and n % 4 == 3:
+            result = -result
+
+        a, n = n % a, a
+
+    return result if n == 1 else 0
+
+def solovay_strassen(n: int, rounds: int = 20, rng: random.Random = None) -> bool:
+    """Probabilistic Solovay-Strassen primality test using Euler's criterion.
+
+    Tests whether n is prime by verifying a^((n-1)/2) ≡ (a/n) (mod n) for random bases a.
+    Every composite number has at least n/2 Euler witnesses, giving error probability <= 2^(-rounds).
+    Raises TypeError if n or rounds is not an integer.
+    Raises ValueError if rounds < 1.
+    """
+    if not isinstance(n, int):
+        raise TypeError("n must be an integer")
+    if not isinstance(rounds, int):
+        raise TypeError("rounds must be an integer")
+    if rounds < 1:
+        raise ValueError("rounds must be >= 1")
+
+    if n < 2:
+        return False
+    if n in (2, 3):
+        return True
+    if n % 2 == 0:
+        return False
+
+    if rng is None:
+        rng = random.Random()
+
+    for _ in range(rounds):
+        a = rng.randint(2, n - 2) if n > 4 else 2
+        x = jacobi_symbol(a, n)
+        if x == 0:
+            return False
+        mod_exp = pow(a, (n - 1) // 2, n)
+        if mod_exp != (x % n):
+            return False
+    return True
+
 def sqrt_mod(a: int, p: int) -> tuple:
     """Return the square root(s) of a modulo an odd prime p."""
     _require_odd_prime(p)
@@ -678,6 +742,19 @@ def _generate_dlog_problem(rng: random.Random) -> dict:
         "answer": x,
     }
 
+_JACOBI_MODULI = [
+    9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 33, 35, 39, 45, 51, 55, 63, 65, 77, 85, 91, 99,
+]
+
+def _generate_jacobi_problem(rng: random.Random) -> dict:
+    n = rng.choice(_JACOBI_MODULI)
+    a = rng.randint(1, n - 1)
+    return {
+        "topic": "jacobi",
+        "question": f"Jacobi symbol ({a}/{n})",
+        "answer": jacobi_symbol(a, n),
+    }
+
 _TOPIC_GENERATORS = {
     "legendre": _generate_legendre_problem,
     "crt": _generate_crt_problem,
@@ -686,6 +763,7 @@ _TOPIC_GENERATORS = {
     "factor": _generate_factor_problem,
     "totient": _generate_totient_problem,
     "dlog": _generate_dlog_problem,
+    "jacobi": _generate_jacobi_problem,
 }
 
 def generate_problem(topic: str, rng: random.Random) -> dict:
@@ -694,6 +772,58 @@ def generate_problem(topic: str, rng: random.Random) -> dict:
     if topic not in _TOPIC_GENERATORS:
         raise ValueError(f"Unknown challenge topic: {topic}")
     return _TOPIC_GENERATORS[topic](rng)
+
+# Convenience aliases
+dlog = discrete_log
+egcd = extended_gcd
+modinv = mod_inverse
+crt = crt_solve
+
+def cmd_repl() -> None:
+    """Launch interactive FoxMath REPL."""
+    import code
+
+    banner = (
+        f"FoxMath {_package_version()} Interactive REPL 🦊\n"
+        "All math functions loaded. Type exit() or Ctrl-Z + Enter to quit.\n"
+        "Functions: jacobi_symbol, solovay_strassen, discrete_log (dlog),\n"
+        "           mobius, sigma, tau, factorize, is_prime, euler_phi, ..."
+    )
+    print(banner)
+    namespace = {
+        "__name__": "__console__",
+        "__doc__": None,
+        "is_prime": is_prime,
+        "factorize": factorize,
+        "format_factorization": format_factorization,
+        "legendre_symbol": legendre_symbol,
+        "jacobi_symbol": jacobi_symbol,
+        "solovay_strassen": solovay_strassen,
+        "sqrt_mod": sqrt_mod,
+        "discrete_log": discrete_log,
+        "dlog": discrete_log,
+        "euler_phi": euler_phi,
+        "carmichael_lambda": carmichael_lambda,
+        "multiplicative_order": multiplicative_order,
+        "is_primitive_root": is_primitive_root,
+        "mobius": mobius,
+        "tau": tau,
+        "sigma": sigma,
+        "extended_gcd": extended_gcd,
+        "egcd": extended_gcd,
+        "mod_inverse": mod_inverse,
+        "modinv": mod_inverse,
+        "crt_solve": crt_solve,
+        "crt": crt_solve,
+        "euler_hermann_pi_approx": euler_hermann_pi_approx,
+        "ec_point_add": ec_point_add,
+        "ec_mul": ec_mul,
+        "is_on_curve": is_on_curve,
+        "CURVES": CURVES,
+        "continued_fraction": continued_fraction,
+        "cf_convergents": cf_convergents,
+    }
+    code.interact(banner="", local=namespace, exitmsg="")
 
 # ------------------- CLI -------------------
 
@@ -828,9 +958,22 @@ def main():
     tau_cmd = subparsers.add_parser("tau", help="Divisor count function tau(n)")
     tau_cmd.add_argument("n", type=int, help="Positive integer to evaluate (n >= 1)")
 
+    # Jacobi
+    jac_cmd = subparsers.add_parser("jacobi", help="Jacobi symbol (a/n) for positive odd n")
+    jac_cmd.add_argument("a", type=int, help="Integer a")
+    jac_cmd.add_argument("n", type=int, help="Positive odd integer n")
+
+    # Solovay-Strassen primality test
+    sol_cmd = subparsers.add_parser("solovay", help="Solovay-Strassen probabilistic primality test")
+    sol_cmd.add_argument("n", type=int, help="Integer to test")
+    sol_cmd.add_argument("--rounds", type=int, default=20, help="Number of test rounds (default: 20)")
+
+    # Interactive REPL
+    subparsers.add_parser("repl", help="Interactive FoxMath REPL")
+
     # Challenge / quiz mode
-    challenge = subparsers.add_parser("challenge", help="Practice problems (Legendre, CRT, SqrtMod, Factor, Totient, DLog)")
-    challenge.add_argument("--topic", choices=["legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "dlog", "mixed"], default="mixed")
+    challenge = subparsers.add_parser("challenge", help="Practice problems (Legendre, Jacobi, CRT, SqrtMod, Factor, Totient, DLog)")
+    challenge.add_argument("--topic", choices=["legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "dlog", "jacobi", "mixed"], default="mixed")
     challenge.add_argument("--count", type=int, default=5, help="Number of problems")
     challenge.add_argument("--seed", type=int, help="Random seed for reproducible problem sets")
     challenge.add_argument("--reveal", action="store_true",
@@ -1061,6 +1204,30 @@ def main():
             result.update({"command": "tau", "n": args.n, "value": val})
             if not json_output:
                 print(f"tau({args.n}) = {val}")
+
+        elif cmd == "jacobi" or args.command == "jacobi":
+            js = jacobi_symbol(args.a, args.n)
+            result.update({"command": "jacobi", "a": args.a, "n": args.n, "value": js})
+            if not json_output:
+                print(f"Jacobi ({args.a}/{args.n}) = {js}")
+
+        elif cmd == "solovay" or args.command == "solovay":
+            prime = solovay_strassen(args.n, rounds=args.rounds)
+            result.update({"command": "solovay", "n": args.n, "rounds": args.rounds, "is_prime": prime})
+            if not json_output:
+                if args.n < 2:
+                    print(f"{args.n} is not prime")
+                elif prime:
+                    if args.n in (2, 3):
+                        print(f"{args.n} is prime")
+                    else:
+                        print(f"{args.n} is probably prime (Solovay-Strassen, {args.rounds} rounds)")
+                else:
+                    print(f"{args.n} is composite")
+
+        elif cmd == "repl" or args.command == "repl":
+            cmd_repl()
+            return
 
         elif cmd == "challenge" or args.command == "challenge":
             if args.count < 1:

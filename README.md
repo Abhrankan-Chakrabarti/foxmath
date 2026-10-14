@@ -1,6 +1,6 @@
 # FoxMath 🦊
 
-**Minimalist CLI and Python library for number theory and cryptography exploration: Baby-step Giant-step discrete logarithm solver, classical arithmetic functions (μ, σ, τ), Pollard's ρ integer factorization, Euler's totient & Carmichael functions, multiplicative order, Tonelli-Shanks modular roots, Weierstrass elliptic curve arithmetic, Chinese Remainder Theorem, and continued fractions.**
+**Minimalist CLI and Python library for number theory and cryptography exploration: Baby-step Giant-step discrete logarithm solver, classical arithmetic functions (μ, σ, τ), Jacobi symbol & Solovay–Strassen primality test, Pollard's ρ integer factorization, Euler's totient & Carmichael functions, multiplicative order, Tonelli-Shanks modular roots, interactive REPL, Weierstrass elliptic curve arithmetic, Chinese Remainder Theorem, and continued fractions.**
 
 **More about me / other projects:** [abhrankan.duckdns.org](https://abhrankan.duckdns.org)
 
@@ -10,6 +10,8 @@ Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
 
 ## Features
 - Legendre symbol
+- Jacobi symbol (jacobi)
+- Solovay–Strassen probabilistic primality test (solovay)
 - Modular square root via Tonelli-Shanks (sqrtmod)
 - Deterministic Miller-Rabin primality test (isprime)
 - Prime factorization via Pollard's rho & trial division (factor)
@@ -20,6 +22,7 @@ Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
 - Extended Euclidean algorithm (egcd) & Bézout coefficients
 - Modular multiplicative inverse (modinv)
 - Euler/Hermann Machin-like π approximation
+- Interactive Python REPL with all functions preloaded (repl)
 - Elliptic curve point addition (over finite fields), including
   named curves (secp256k1) with on-curve result validation
 - Elliptic curve scalar multiplication k·P (double-and-add), including
@@ -28,11 +31,12 @@ Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
 - Continued fraction expansion and convergents
 - Challenge/quiz mode — practice problems with scoring, or a
   worksheet mode for self-study
-- Symlink-friendly (foxmath-legendre, foxmath-sqrtmod, foxmath-isprime,
-  foxmath-factor, foxmath-totient, foxmath-order, foxmath-dlog,
-  foxmath-mobius, foxmath-sigma, foxmath-tau, foxmath-egcd,
-  foxmath-modinv, foxmath-pi, foxmath-ecadd, foxmath-ecmul,
-  foxmath-crt, foxmath-cf, foxmath-challenge)
+- Symlink-friendly (foxmath-legendre, foxmath-jacobi, foxmath-solovay,
+  foxmath-repl, foxmath-sqrtmod, foxmath-isprime, foxmath-factor,
+  foxmath-totient, foxmath-order, foxmath-dlog, foxmath-mobius,
+  foxmath-sigma, foxmath-tau, foxmath-egcd, foxmath-modinv,
+  foxmath-pi, foxmath-ecadd, foxmath-ecmul, foxmath-crt,
+  foxmath-cf, foxmath-challenge)
 - JSON output mode
 
 ## Installation
@@ -53,7 +57,7 @@ Check which version you have installed:
 foxmath --version
 ```
 ```
-foxmath 0.12.1
+foxmath 0.13.0
 ```
 
 ## Usage Examples
@@ -91,6 +95,20 @@ foxmath legendre 5 17
 ```
 ```
 Legendre (5/17) = -1
+```
+
+```bash
+foxmath jacobi 10 13
+```
+```
+Jacobi (10/13) = 1
+```
+
+```bash
+foxmath solovay 104729
+```
+```
+104729 is probably prime (Solovay-Strassen, 20 rounds)
 ```
 
 ```bash
@@ -159,6 +177,21 @@ foxmath tau 12
 ```
 ```
 tau(12) = 6
+```
+
+```bash
+# Interactive REPL (all functions preloaded)
+foxmath repl
+```
+```
+FoxMath 0.13.0 Interactive REPL 🦊
+All math functions loaded. Type exit() or Ctrl-Z + Enter to quit.
+>>> jacobi_symbol(10, 13)
+1
+>>> solovay_strassen(104729)
+True
+>>> dlog(2, 5, 13)
+9
 ```
 
 ```bash
@@ -238,7 +271,7 @@ foxmath challenge --topic ecdlp --count 1 --seed 9 --reveal
 ```
 
 Drop `--reveal` to answer interactively instead, with scoring at the end.
-`--topic` accepts `legendre`, `crt`, `ecdlp`, `sqrtmod`, `factor`, `totient`, `dlog`, or `mixed` (default).
+`--topic` accepts `legendre`, `jacobi`, `crt`, `ecdlp`, `sqrtmod`, `factor`, `totient`, `dlog`, or `mixed` (default).
 
 ```bash
 # JSON output

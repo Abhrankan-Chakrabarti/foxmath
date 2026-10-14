@@ -13,13 +13,14 @@ from decimal import Decimal
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
 from foxmath.foxmath import (
-    legendre_symbol, sqrt_mod, is_prime, extended_gcd, mod_inverse,
-    euler_hermann_pi_approx, ec_point_add, ec_mul, crt_solve,
-    continued_fraction, cf_convergents, CURVES, is_on_curve,
+    legendre_symbol, jacobi_symbol, solovay_strassen, sqrt_mod, is_prime,
+    extended_gcd, mod_inverse, euler_hermann_pi_approx, ec_point_add, ec_mul,
+    crt_solve, continued_fraction, cf_convergents, CURVES, is_on_curve,
     generate_problem, _is_probable_prime,
     factorize, format_factorization,
     euler_phi, carmichael_lambda, multiplicative_order, is_primitive_root,
     discrete_log, mobius, tau, sigma,
+    dlog, egcd, modinv, crt,
 )
 import random
 
@@ -691,10 +692,18 @@ class TestChallengeGenerators(unittest.TestCase):
             self.assertIsInstance(prob["answer"], int)
             self.assertIn("such that", prob["question"])
 
+    def test_jacobi_problem_answer_is_correct(self):
+        rng = random.Random(0)
+        for _ in range(50):
+            prob = generate_problem("jacobi", rng)
+            self.assertEqual(prob["topic"], "jacobi")
+            self.assertIn(prob["answer"], (-1, 0, 1))
+            self.assertIn("Jacobi symbol (", prob["question"])
+
     def test_mixed_topic_produces_all_kinds(self):
         rng = random.Random(1)
-        topics = {generate_problem("mixed", rng)["topic"] for _ in range(100)}
-        self.assertEqual(topics, {"legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "dlog"})
+        topics = {generate_problem("mixed", rng)["topic"] for _ in range(150)}
+        self.assertEqual(topics, {"legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "dlog", "jacobi"})
 
     def test_reproducible_with_same_seed(self):
         p1 = generate_problem("legendre", random.Random(99))
@@ -704,6 +713,156 @@ class TestChallengeGenerators(unittest.TestCase):
     def test_unknown_topic_raises(self):
         with self.assertRaises(ValueError):
             generate_problem("not_a_topic", random.Random(0))
+
+
+class TestJacobiSymbol(unittest.TestCase):
+    def test_known_values(self):
+        self.assertEqual(jacobi_symbol(2, 9), 1)
+        self.assertEqual(jacobi_symbol(2, 15), 1)
+        self.assertEqual(jacobi_symbol(2, 21), -1)
+        self.assertEqual(jacobi_symbol(6, 21), 0)
+        self.assertEqual(jacobi_symbol(10, 13), 1)
+        self.assertEqual(jacobi_symbol(3, 7), -1)
+        self.assertEqual(jacobi_symbol(1007, 2003), 1)
+
+    def test_parity_with_legendre_symbol(self):
+        for p in (3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41):
+            for a in range(-30, 30):
+                self.assertEqual(jacobi_symbol(a, p), legendre_symbol(a, p))
+
+    def test_composite_moduli_multiplicative_definition(self):
+        # (a/n) == prod (a/p)^e
+        composites = [9, 15, 21, 25, 27, 33, 35, 45, 55, 63, 77, 91, 105]
+        for n in composites:
+            factors = factorize(n)
+            for a in range(-20, 20):
+                expected = 1
+                for p, power in factors:
+                    expected *= (legendre_symbol(a, p) ** power)
+                self.assertEqual(jacobi_symbol(a, n), expected)
+
+    def test_multiplicative_numerator(self):
+        for n in (7, 15, 21, 35):
+            for a in range(1, 15):
+                for b in range(1, 15):
+                    self.assertEqual(
+                        jacobi_symbol(a * b, n),
+                        jacobi_symbol(a, n) * jacobi_symbol(b, n),
+                    )
+
+    def test_multiplicative_denominator(self):
+        for a in range(1, 20):
+            m, n = 7, 11
+            self.assertEqual(
+                jacobi_symbol(a, m * n),
+                jacobi_symbol(a, m) * jacobi_symbol(a, n),
+            )
+
+    def test_n_equals_one(self):
+        for a in (-10, -1, 0, 1, 2, 42, 100):
+            self.assertEqual(jacobi_symbol(a, 1), 1)
+
+    def test_zero_numerator(self):
+        self.assertEqual(jacobi_symbol(0, 1), 1)
+        self.assertEqual(jacobi_symbol(0, 3), 0)
+        self.assertEqual(jacobi_symbol(0, 15), 0)
+
+    def test_negative_numerators(self):
+        self.assertEqual(jacobi_symbol(-1, 7), -1)  # 7 ≡ 3 mod 4
+        self.assertEqual(jacobi_symbol(-1, 5), 1)   # 5 ≡ 1 mod 4
+        self.assertEqual(jacobi_symbol(-1, 15), -1) # 15 ≡ 3 mod 4
+        self.assertEqual(jacobi_symbol(-2, 15), -1)
+
+    def test_modular_equivalence(self):
+        for n in (9, 15, 21):
+            for a in range(-10, 10):
+                self.assertEqual(jacobi_symbol(a, n), jacobi_symbol(a + 5 * n, n))
+
+    def test_non_coprime_gives_zero(self):
+        self.assertEqual(jacobi_symbol(15, 25), 0)
+        self.assertEqual(jacobi_symbol(14, 21), 0)
+        self.assertEqual(jacobi_symbol(33, 99), 0)
+
+    def test_invalid_modulus_raises(self):
+        with self.assertRaises(ValueError):
+            jacobi_symbol(2, 0)
+        with self.assertRaises(ValueError):
+            jacobi_symbol(2, -3)
+        with self.assertRaises(ValueError):
+            jacobi_symbol(2, 2)
+        with self.assertRaises(ValueError):
+            jacobi_symbol(2, 8)
+
+    def test_invalid_types_raise(self):
+        with self.assertRaises(TypeError):
+            jacobi_symbol("2", 7)
+        with self.assertRaises(TypeError):
+            jacobi_symbol(2, "7")
+        with self.assertRaises(TypeError):
+            jacobi_symbol(2.5, 7)
+
+
+class TestSolovayStrassen(unittest.TestCase):
+    def test_known_primes(self):
+        for p in (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 104729):
+            self.assertTrue(solovay_strassen(p, rounds=20, rng=random.Random(p)))
+
+    def test_known_composites(self):
+        for c in (4, 6, 8, 9, 10, 12, 14, 15, 16, 21, 25, 27, 33, 35, 49, 100):
+            self.assertFalse(solovay_strassen(c, rounds=20, rng=random.Random(c)))
+
+    def test_carmichael_numbers_detected_as_composite(self):
+        for c in (561, 1105, 1729, 2465, 2821):
+            self.assertFalse(solovay_strassen(c, rounds=25, rng=random.Random(c)))
+
+    def test_euler_pseudoprime_91(self):
+        # 91 = 7 * 13 is an Euler pseudoprime to base 9, but Solovay-Strassen detects compositeness
+        self.assertFalse(solovay_strassen(91, rounds=20, rng=random.Random(91)))
+
+    def test_small_and_negative_inputs(self):
+        self.assertFalse(solovay_strassen(0))
+        self.assertFalse(solovay_strassen(1))
+        self.assertFalse(solovay_strassen(-7))
+        self.assertFalse(solovay_strassen(-10))
+
+    def test_deterministic_seeded_rng(self):
+        res1 = solovay_strassen(104729, rounds=15, rng=random.Random(42))
+        res2 = solovay_strassen(104729, rounds=15, rng=random.Random(42))
+        self.assertEqual(res1, res2)
+        self.assertTrue(res1)
+
+    def test_invalid_arguments_raise(self):
+        with self.assertRaises(TypeError):
+            solovay_strassen("17")
+        with self.assertRaises(TypeError):
+            solovay_strassen(17, rounds="20")
+        with self.assertRaises(ValueError):
+            solovay_strassen(17, rounds=0)
+        with self.assertRaises(ValueError):
+            solovay_strassen(17, rounds=-5)
+
+
+class TestAliasesAndPackageExports(unittest.TestCase):
+    def test_convenience_aliases(self):
+        self.assertEqual(dlog(2, 5, 13), 9)
+        self.assertEqual(egcd(30, 50), (10, 2, -1))
+        self.assertEqual(modinv(3, 11), 4)
+        self.assertEqual(crt([2, 3, 2], [3, 5, 7]), (23, 105))
+
+    def test_top_level_package_exports(self):
+        import foxmath
+        self.assertTrue(callable(foxmath.jacobi_symbol))
+        self.assertTrue(callable(foxmath.solovay_strassen))
+        self.assertTrue(callable(foxmath.discrete_log))
+        self.assertTrue(callable(foxmath.dlog))
+        self.assertTrue(callable(foxmath.mobius))
+        self.assertTrue(callable(foxmath.sigma))
+        self.assertTrue(callable(foxmath.tau))
+        self.assertTrue(callable(foxmath.egcd))
+        self.assertTrue(callable(foxmath.modinv))
+        self.assertTrue(callable(foxmath.crt))
+        self.assertEqual(foxmath.jacobi_symbol(10, 13), 1)
+        self.assertTrue(foxmath.solovay_strassen(17))
 
 
 if __name__ == "__main__":
