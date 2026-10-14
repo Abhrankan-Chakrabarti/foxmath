@@ -13,8 +13,10 @@ Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
 - Modular square root via Tonelli-Shanks (sqrtmod)
 - Deterministic Miller-Rabin primality test (isprime)
 - Prime factorization via Pollard's rho & trial division (factor)
+- Discrete logarithm solver via Baby-step Giant-step (dlog)
 - Euler's totient φ(n) and Carmichael λ(n) (totient)
 - Multiplicative order and primitive roots (order)
+- Classical arithmetic functions: Möbius μ(n), divisor count τ(n), divisor sum σ(n)
 - Extended Euclidean algorithm (egcd) & Bézout coefficients
 - Modular multiplicative inverse (modinv)
 - Euler/Hermann Machin-like π approximation
@@ -27,7 +29,8 @@ Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
 - Challenge/quiz mode — practice problems with scoring, or a
   worksheet mode for self-study
 - Symlink-friendly (foxmath-legendre, foxmath-sqrtmod, foxmath-isprime,
-  foxmath-factor, foxmath-totient, foxmath-order, foxmath-egcd,
+  foxmath-factor, foxmath-totient, foxmath-order, foxmath-dlog,
+  foxmath-mobius, foxmath-sigma, foxmath-tau, foxmath-egcd,
   foxmath-modinv, foxmath-pi, foxmath-ecadd, foxmath-ecmul,
   foxmath-crt, foxmath-cf, foxmath-challenge)
 - JSON output mode
@@ -50,7 +53,7 @@ Check which version you have installed:
 foxmath --version
 ```
 ```
-foxmath 0.11.1
+foxmath 0.12.0
 ```
 
 ## Usage Examples
@@ -131,6 +134,34 @@ ord_7(3) = 6 (primitive root)
 ```
 
 ```bash
+foxmath dlog 3 6 7
+```
+```
+3^3 ≡ 6 (mod 7)
+```
+
+```bash
+foxmath mobius 30
+```
+```
+mu(30) = -1
+```
+
+```bash
+foxmath sigma 12
+```
+```
+sigma(12) = 28
+```
+
+```bash
+foxmath tau 12
+```
+```
+tau(12) = 6
+```
+
+```bash
 # Symlinks (optional)
 foxmath-ecadd --x1 1 --y1 2 --x2 3 --y2 4 --p 17
 ```
@@ -207,7 +238,7 @@ foxmath challenge --topic ecdlp --count 1 --seed 9 --reveal
 ```
 
 Drop `--reveal` to answer interactively instead, with scoring at the end.
-`--topic` accepts `legendre`, `crt`, `ecdlp`, `sqrtmod`, `factor`, `totient`, or `mixed` (default).
+`--topic` accepts `legendre`, `crt`, `ecdlp`, `sqrtmod`, `factor`, `totient`, `dlog`, or `mixed` (default).
 
 ```bash
 # JSON output

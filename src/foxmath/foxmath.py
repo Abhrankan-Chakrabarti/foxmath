@@ -11,7 +11,7 @@ import random
 from collections import Counter
 from decimal import Decimal, getcontext
 from importlib import metadata
-from math import gcd
+from math import gcd, isqrt
 from pathlib import Path
 
 def _package_version() -> str:
@@ -219,6 +219,98 @@ def is_primitive_root(a: int, m: int) -> bool:
     if m <= 1 or gcd(a, m) != 1:
         return False
     return multiplicative_order(a, m) == euler_phi(m)
+
+def discrete_log(g: int, h: int, p: int) -> int:
+    """Solve the discrete logarithm problem g^x ≡ h (mod p) using Baby-step Giant-step.
+
+    Returns the smallest integer x >= 0 such that pow(g, x, p) == h % p.
+    Raises ValueError if p <= 1, if gcd(g, p) != 1, or if no solution exists.
+    """
+    if not isinstance(g, int) or not isinstance(h, int) or not isinstance(p, int):
+        raise TypeError("g, h, and p must be integers")
+    if p <= 1:
+        raise ValueError("Modulus p must be greater than 1")
+
+    g %= p
+    h %= p
+
+    if h == 1:
+        return 0
+
+    d = gcd(g, p)
+    if d != 1:
+        raise ValueError(f"Base {g} and modulus {p} must be coprime (gcd = {d})")
+
+    order = multiplicative_order(g, p)
+    m = isqrt(order)
+    if m * m < order:
+        m += 1
+
+    # Baby steps: compute g^j mod p for j in [0, m - 1]
+    table = {}
+    cur = 1
+    for j in range(m):
+        if cur not in table:
+            table[cur] = j
+        cur = (cur * g) % p
+
+    # Giant steps: factor = g^(-m) mod p
+    factor = pow(g, -m, p)
+    gamma = h
+    for i in range((order + m - 1) // m + 1):
+        if gamma in table:
+            ans = i * m + table[gamma]
+            if ans < order:
+                return ans
+        gamma = (gamma * factor) % p
+
+    raise ValueError(f"No discrete logarithm exists for {g}^x ≡ {h} (mod {p})")
+
+def mobius(n: int) -> int:
+    """Möbius function mu(n). Returns (-1)^k for square-free n with k prime factors, 0 otherwise."""
+    if not isinstance(n, int):
+        raise TypeError("n must be an integer")
+    if n < 1:
+        raise ValueError("n must be a positive integer >= 1")
+    if n == 1:
+        return 1
+    factors = factorize(n)
+    for _, power in factors:
+        if power > 1:
+            return 0
+    return -1 if len(factors) % 2 == 1 else 1
+
+def tau(n: int) -> int:
+    """Divisor count function tau(n) (also d(n)). Number of positive divisors of n."""
+    if not isinstance(n, int):
+        raise TypeError("n must be an integer")
+    if n < 1:
+        raise ValueError("n must be a positive integer >= 1")
+    if n == 1:
+        return 1
+    total = 1
+    for _, power in factorize(n):
+        total *= (power + 1)
+    return total
+
+def sigma(n: int, k: int = 1) -> int:
+    """Divisor sum function sigma_k(n). Sum of k-th powers of positive divisors of n."""
+    if not isinstance(n, int) or not isinstance(k, int):
+        raise TypeError("n and k must be integers")
+    if n < 1:
+        raise ValueError("n must be a positive integer >= 1")
+    if k < 0:
+        raise ValueError("k must be a non-negative integer >= 0")
+    if n == 1:
+        return 1
+    if k == 0:
+        return tau(n)
+    total = 1
+    for p, power in factorize(n):
+        pk = p ** k
+        term = (pk ** (power + 1) - 1) // (pk - 1)
+        total *= term
+    return total
 
 def _require_odd_prime(p: int) -> None:
     """Enforce the contract the Legendre symbol and Tonelli-Shanks rely on.
@@ -570,6 +662,22 @@ def _generate_totient_problem(rng: random.Random) -> dict:
         "answer": euler_phi(n),
     }
 
+_DLOG_PROBLEMS = [
+    (2, 13), (3, 17), (2, 19), (2, 29), (3, 31),
+    (2, 37), (3, 41), (3, 43), (2, 53), (2, 59),
+]
+
+def _generate_dlog_problem(rng: random.Random) -> dict:
+    g, p = rng.choice(_DLOG_PROBLEMS)
+    order = multiplicative_order(g, p)
+    x = rng.randint(1, order - 1)
+    h = pow(g, x, p)
+    return {
+        "topic": "dlog",
+        "question": f"Find x (0 ≤ x < {order}) such that {g}^x ≡ {h} (mod {p})",
+        "answer": x,
+    }
+
 _TOPIC_GENERATORS = {
     "legendre": _generate_legendre_problem,
     "crt": _generate_crt_problem,
@@ -577,6 +685,7 @@ _TOPIC_GENERATORS = {
     "sqrtmod": _generate_sqrtmod_problem,
     "factor": _generate_factor_problem,
     "totient": _generate_totient_problem,
+    "dlog": _generate_dlog_problem,
 }
 
 def generate_problem(topic: str, rng: random.Random) -> dict:
@@ -700,9 +809,28 @@ def main():
     order_cmd.add_argument("a", type=int, help="Base integer a")
     order_cmd.add_argument("m", type=int, help="Modulus m (> 1)")
 
+    # Discrete Logarithm
+    dlog_cmd = subparsers.add_parser("dlog", help="Discrete logarithm solver: g^x ≡ h (mod p)")
+    dlog_cmd.add_argument("g", type=int, help="Base integer g")
+    dlog_cmd.add_argument("h", type=int, help="Target value h")
+    dlog_cmd.add_argument("p", type=int, help="Modulus p (> 1)")
+
+    # Möbius function
+    mob_cmd = subparsers.add_parser("mobius", help="Möbius function mu(n)")
+    mob_cmd.add_argument("n", type=int, help="Positive integer to evaluate (n >= 1)")
+
+    # Sum of divisors
+    sig_cmd = subparsers.add_parser("sigma", help="Sum of divisors function sigma_k(n)")
+    sig_cmd.add_argument("n", type=int, help="Positive integer to evaluate (n >= 1)")
+    sig_cmd.add_argument("--k", type=int, default=1, help="Exponent k (default: 1)")
+
+    # Divisor count
+    tau_cmd = subparsers.add_parser("tau", help="Divisor count function tau(n)")
+    tau_cmd.add_argument("n", type=int, help="Positive integer to evaluate (n >= 1)")
+
     # Challenge / quiz mode
-    challenge = subparsers.add_parser("challenge", help="Practice problems (Legendre, CRT, SqrtMod, Factor, Totient)")
-    challenge.add_argument("--topic", choices=["legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "mixed"], default="mixed")
+    challenge = subparsers.add_parser("challenge", help="Practice problems (Legendre, CRT, SqrtMod, Factor, Totient, DLog)")
+    challenge.add_argument("--topic", choices=["legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "dlog", "mixed"], default="mixed")
     challenge.add_argument("--count", type=int, default=5, help="Number of problems")
     challenge.add_argument("--seed", type=int, help="Random seed for reproducible problem sets")
     challenge.add_argument("--reveal", action="store_true",
@@ -900,6 +1028,39 @@ def main():
             if not json_output:
                 prim_str = " (primitive root)" if is_prim else ""
                 print(f"ord_{args.m}({args.a}) = {ord_k}{prim_str}")
+
+        elif cmd == "dlog" or args.command == "dlog":
+            x = discrete_log(args.g, args.h, args.p)
+            ord_g = multiplicative_order(args.g, args.p)
+            result.update({
+                "command": "dlog",
+                "g": args.g,
+                "h": args.h,
+                "p": args.p,
+                "x": x,
+                "order": ord_g,
+            })
+            if not json_output:
+                print(f"{args.g}^{x} ≡ {args.h} (mod {args.p})")
+
+        elif cmd == "mobius" or args.command == "mobius":
+            val = mobius(args.n)
+            result.update({"command": "mobius", "n": args.n, "value": val})
+            if not json_output:
+                print(f"mu({args.n}) = {val}")
+
+        elif cmd == "sigma" or args.command == "sigma":
+            val = sigma(args.n, args.k)
+            result.update({"command": "sigma", "n": args.n, "k": args.k, "value": val})
+            if not json_output:
+                prefix = f"sigma_{args.k}" if args.k != 1 else "sigma"
+                print(f"{prefix}({args.n}) = {val}")
+
+        elif cmd == "tau" or args.command == "tau":
+            val = tau(args.n)
+            result.update({"command": "tau", "n": args.n, "value": val})
+            if not json_output:
+                print(f"tau({args.n}) = {val}")
 
         elif cmd == "challenge" or args.command == "challenge":
             if args.count < 1:

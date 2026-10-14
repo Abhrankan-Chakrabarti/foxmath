@@ -19,6 +19,7 @@ from foxmath.foxmath import (
     generate_problem, _is_probable_prime,
     factorize, format_factorization,
     euler_phi, carmichael_lambda, multiplicative_order, is_primitive_root,
+    discrete_log, mobius, tau, sigma,
 )
 import random
 
@@ -547,6 +548,100 @@ class TestMultiplicativeOrder(unittest.TestCase):
         self.assertFalse(is_primitive_root(1, 1))  # invalid modulus
 
 
+class TestDiscreteLog(unittest.TestCase):
+    def test_known_values(self):
+        self.assertEqual(discrete_log(3, 6, 7), 3)
+        self.assertEqual(discrete_log(2, 5, 13), 9)
+        self.assertEqual(discrete_log(3, 1, 7), 0)
+        self.assertEqual(discrete_log(3, 3, 7), 1)
+        self.assertEqual(discrete_log(2, 1, 5), 0)
+
+    def test_subgroup(self):
+        # 4 has order 4 in (Z/17Z)*: 4^0=1, 4^1=4, 4^2=16, 4^3=13
+        self.assertEqual(discrete_log(4, 13, 17), 3)
+        self.assertEqual(discrete_log(4, 16, 17), 2)
+        self.assertEqual(discrete_log(4, 4, 17), 1)
+
+    def test_no_solution_raises(self):
+        # 4 does not generate 3 mod 17
+        with self.assertRaises(ValueError):
+            discrete_log(4, 3, 17)
+        # 2 generates subgroup of size 3 in (Z/7Z)*: {1, 2, 4}
+        with self.assertRaises(ValueError):
+            discrete_log(2, 3, 7)
+
+    def test_non_coprime_raises(self):
+        with self.assertRaises(ValueError):
+            discrete_log(2, 4, 8)
+
+    def test_invalid_modulus_raises(self):
+        with self.assertRaises(ValueError):
+            discrete_log(2, 3, 1)
+        with self.assertRaises(ValueError):
+            discrete_log(2, 3, -5)
+
+    def test_invalid_types_raises(self):
+        with self.assertRaises(TypeError):
+            discrete_log("2", 3, 5)
+
+
+class TestMobius(unittest.TestCase):
+    def test_known_values(self):
+        self.assertEqual(mobius(1), 1)
+        self.assertEqual(mobius(2), -1)
+        self.assertEqual(mobius(3), -1)
+        self.assertEqual(mobius(4), 0)
+        self.assertEqual(mobius(5), -1)
+        self.assertEqual(mobius(6), 1)
+        self.assertEqual(mobius(12), 0)
+        self.assertEqual(mobius(30), -1)
+
+    def test_invalid_inputs(self):
+        with self.assertRaises(ValueError):
+            mobius(0)
+        with self.assertRaises(ValueError):
+            mobius(-5)
+        with self.assertRaises(TypeError):
+            mobius("6")
+
+
+class TestTau(unittest.TestCase):
+    def test_known_values(self):
+        self.assertEqual(tau(1), 1)
+        self.assertEqual(tau(2), 2)
+        self.assertEqual(tau(6), 4)
+        self.assertEqual(tau(12), 6)
+        self.assertEqual(tau(360), 24)
+
+    def test_invalid_inputs(self):
+        with self.assertRaises(ValueError):
+            tau(0)
+        with self.assertRaises(ValueError):
+            tau(-10)
+        with self.assertRaises(TypeError):
+            tau("12")
+
+
+class TestSigma(unittest.TestCase):
+    def test_known_values(self):
+        self.assertEqual(sigma(1), 1)
+        self.assertEqual(sigma(6), 12)
+        self.assertEqual(sigma(12), 28)
+        self.assertEqual(sigma(28), 56)  # 28 is a perfect number
+        self.assertEqual(sigma(6, 2), 50)  # 1^2 + 2^2 + 3^2 + 6^2 = 50
+        self.assertEqual(sigma(12, 0), 6)  # sigma_0(n) == tau(n)
+
+    def test_invalid_inputs(self):
+        with self.assertRaises(ValueError):
+            sigma(0)
+        with self.assertRaises(ValueError):
+            sigma(-5)
+        with self.assertRaises(ValueError):
+            sigma(6, -1)
+        with self.assertRaises(TypeError):
+            sigma("6")
+
+
 class TestChallengeGenerators(unittest.TestCase):
     def test_legendre_problem_answer_is_correct(self):
         rng = random.Random(0)
@@ -588,10 +683,18 @@ class TestChallengeGenerators(unittest.TestCase):
             self.assertIsInstance(prob["answer"], int)
             self.assertIn("Compute Euler's totient phi(", prob["question"])
 
+    def test_dlog_problem_answer_is_correct(self):
+        rng = random.Random(0)
+        for _ in range(50):
+            prob = generate_problem("dlog", rng)
+            self.assertEqual(prob["topic"], "dlog")
+            self.assertIsInstance(prob["answer"], int)
+            self.assertIn("such that", prob["question"])
+
     def test_mixed_topic_produces_all_kinds(self):
         rng = random.Random(1)
-        topics = {generate_problem("mixed", rng)["topic"] for _ in range(80)}
-        self.assertEqual(topics, {"legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient"})
+        topics = {generate_problem("mixed", rng)["topic"] for _ in range(100)}
+        self.assertEqual(topics, {"legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "dlog"})
 
     def test_reproducible_with_same_seed(self):
         p1 = generate_problem("legendre", random.Random(99))

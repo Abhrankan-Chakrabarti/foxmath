@@ -107,6 +107,30 @@ class TestSymlinkInvocation(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("ord_7(3) = 6 (primitive root)", out)
 
+    def test_dlog_symlink(self):
+        script = self._make_symlink_script("foxmath-dlog")
+        code, out, err = run("3", "6", "7", script=script)
+        self.assertEqual(code, 0)
+        self.assertIn("3^3 ≡ 6 (mod 7)", out)
+
+    def test_mobius_symlink(self):
+        script = self._make_symlink_script("foxmath-mobius")
+        code, out, err = run("30", script=script)
+        self.assertEqual(code, 0)
+        self.assertIn("mu(30) = -1", out)
+
+    def test_sigma_symlink(self):
+        script = self._make_symlink_script("foxmath-sigma")
+        code, out, err = run("12", script=script)
+        self.assertEqual(code, 0)
+        self.assertIn("sigma(12) = 28", out)
+
+    def test_tau_symlink(self):
+        script = self._make_symlink_script("foxmath-tau")
+        code, out, err = run("12", script=script)
+        self.assertEqual(code, 0)
+        self.assertIn("tau(12) = 6", out)
+
     def test_egcd_symlink(self):
         script = self._make_symlink_script("foxmath-egcd")
         code, out, err = run("30", "50", script=script)
@@ -513,7 +537,88 @@ class TestNormalUsage(unittest.TestCase):
         self.assertIn("Euler's totient", out)
         self.assertIn("Answer:", out)
 
+    def test_dlog(self):
+        code, out, err = run("dlog", "3", "6", "7")
+        self.assertEqual(code, 0)
+        self.assertIn("3^3 ≡ 6 (mod 7)", out)
+
+    def test_dlog_json(self):
+        code, out, err = run("dlog", "3", "6", "7", "--json")
+        self.assertEqual(code, 0)
+        import json
+        data = json.loads(out)
+        self.assertEqual(data["command"], "dlog")
+        self.assertEqual(data["g"], 3)
+        self.assertEqual(data["h"], 6)
+        self.assertEqual(data["p"], 7)
+        self.assertEqual(data["x"], 3)
+        self.assertEqual(data["order"], 6)
+
+    def test_dlog_no_solution_errors(self):
+        code, out, err = run("dlog", "2", "3", "7")
+        self.assertEqual(code, 1)
+        self.assertIn("No discrete logarithm exists", err)
+
+    def test_dlog_non_coprime_errors(self):
+        code, out, err = run("dlog", "2", "4", "8")
+        self.assertEqual(code, 1)
+        self.assertIn("must be coprime", err)
+
+    def test_mobius(self):
+        code, out, err = run("mobius", "30")
+        self.assertEqual(code, 0)
+        self.assertIn("mu(30) = -1", out)
+
+    def test_mobius_json(self):
+        code, out, err = run("mobius", "30", "--json")
+        self.assertEqual(code, 0)
+        import json
+        data = json.loads(out)
+        self.assertEqual(data["command"], "mobius")
+        self.assertEqual(data["n"], 30)
+        self.assertEqual(data["value"], -1)
+
+    def test_sigma(self):
+        code, out, err = run("sigma", "12")
+        self.assertEqual(code, 0)
+        self.assertIn("sigma(12) = 28", out)
+
+    def test_sigma_k(self):
+        code, out, err = run("sigma", "6", "--k", "2")
+        self.assertEqual(code, 0)
+        self.assertIn("sigma_2(6) = 50", out)
+
+    def test_sigma_json(self):
+        code, out, err = run("sigma", "12", "--json")
+        self.assertEqual(code, 0)
+        import json
+        data = json.loads(out)
+        self.assertEqual(data["command"], "sigma")
+        self.assertEqual(data["n"], 12)
+        self.assertEqual(data["k"], 1)
+        self.assertEqual(data["value"], 28)
+
+    def test_tau(self):
+        code, out, err = run("tau", "12")
+        self.assertEqual(code, 0)
+        self.assertIn("tau(12) = 6", out)
+
+    def test_tau_json(self):
+        code, out, err = run("tau", "12", "--json")
+        self.assertEqual(code, 0)
+        import json
+        data = json.loads(out)
+        self.assertEqual(data["command"], "tau")
+        self.assertEqual(data["n"], 12)
+        self.assertEqual(data["value"], 6)
+
+    def test_challenge_dlog(self):
+        code, out, err = run("challenge", "--topic", "dlog", "--count", "2", "--seed", "42", "--reveal")
+        self.assertEqual(code, 0)
+        self.assertIn("such that", out)
+        self.assertIn("Answer:", out)
 
 
 if __name__ == "__main__":
     unittest.main()
+
