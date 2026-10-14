@@ -18,6 +18,7 @@ from foxmath.foxmath import (
     continued_fraction, cf_convergents, CURVES, is_on_curve,
     generate_problem, _is_probable_prime,
     factorize, format_factorization,
+    euler_phi, carmichael_lambda, multiplicative_order, is_primitive_root,
 )
 import random
 
@@ -436,6 +437,116 @@ class TestFactorize(unittest.TestCase):
         self.assertEqual(format_factorization([(13, 1)]), "13")
 
 
+class TestEulerPhi(unittest.TestCase):
+    def test_known_values(self):
+        self.assertEqual(euler_phi(1), 1)
+        self.assertEqual(euler_phi(2), 1)
+        self.assertEqual(euler_phi(7), 6)
+        self.assertEqual(euler_phi(9), 6)
+        self.assertEqual(euler_phi(12), 4)
+        self.assertEqual(euler_phi(360), 96)
+
+    def test_prime_powers(self):
+        # phi(p^k) = p^(k-1) * (p - 1)
+        self.assertEqual(euler_phi(8), 4)       # 2^3 -> 4
+        self.assertEqual(euler_phi(27), 18)     # 3^3 -> 18
+        self.assertEqual(euler_phi(25), 20)     # 5^2 -> 20
+        self.assertEqual(euler_phi(49), 42)     # 7^2 -> 42
+
+    def test_multiplicative_property(self):
+        # gcd(a, b) == 1 => phi(a * b) == phi(a) * phi(b)
+        self.assertEqual(euler_phi(8 * 9), euler_phi(8) * euler_phi(9))
+        self.assertEqual(euler_phi(5 * 7), euler_phi(5) * euler_phi(7))
+
+    def test_invalid_inputs(self):
+        with self.assertRaises(ValueError):
+            euler_phi(0)
+        with self.assertRaises(ValueError):
+            euler_phi(-10)
+        with self.assertRaises(TypeError):
+            euler_phi("360")
+
+
+class TestCarmichaelLambda(unittest.TestCase):
+    def test_known_values(self):
+        self.assertEqual(carmichael_lambda(1), 1)
+        self.assertEqual(carmichael_lambda(2), 1)
+        self.assertEqual(carmichael_lambda(4), 2)
+        self.assertEqual(carmichael_lambda(8), 2)
+        self.assertEqual(carmichael_lambda(16), 4)
+        self.assertEqual(carmichael_lambda(15), 4)
+        self.assertEqual(carmichael_lambda(360), 12)
+
+    def test_cyclic_moduli(self):
+        # Groups (Z/nZ)* that are cyclic: lambda(n) == phi(n)
+        # Form: 1, 2, 4, p^k, 2*p^k for odd prime p
+        for n in (1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 13, 14, 17, 18, 19, 23, 25, 27):
+            self.assertEqual(carmichael_lambda(n), euler_phi(n))
+
+    def test_non_cyclic_moduli(self):
+        # Non-cyclic groups have lambda(n) < phi(n)
+        for n in (8, 12, 15, 16, 20, 24, 30, 360):
+            self.assertLess(carmichael_lambda(n), euler_phi(n))
+
+    def test_exponent_property(self):
+        # For every a coprime to n: a^lambda(n) == 1 (mod n)
+        for n in (8, 12, 15, 20, 24, 360):
+            lam = carmichael_lambda(n)
+            for a in range(1, min(n, 50)):
+                if math.gcd(a, n) == 1:
+                    self.assertEqual(pow(a, lam, n), 1)
+
+    def test_invalid_inputs(self):
+        with self.assertRaises(ValueError):
+            carmichael_lambda(0)
+        with self.assertRaises(ValueError):
+            carmichael_lambda(-5)
+        with self.assertRaises(TypeError):
+            carmichael_lambda("15")
+
+
+class TestMultiplicativeOrder(unittest.TestCase):
+    def test_known_orders(self):
+        self.assertEqual(multiplicative_order(3, 7), 6)
+        self.assertEqual(multiplicative_order(2, 7), 3)
+        self.assertEqual(multiplicative_order(1, 7), 1)
+        self.assertEqual(multiplicative_order(6, 7), 2)
+        self.assertEqual(multiplicative_order(3, 8), 2)
+        self.assertEqual(multiplicative_order(3, 17), 16)
+
+    def test_negative_a(self):
+        # -1 mod 7 is 6, order is 2
+        self.assertEqual(multiplicative_order(-1, 7), 2)
+
+    def test_non_coprime_raises(self):
+        with self.assertRaises(ValueError):
+            multiplicative_order(2, 8)
+        with self.assertRaises(ValueError):
+            multiplicative_order(6, 9)
+
+    def test_modulus_le_one_raises(self):
+        with self.assertRaises(ValueError):
+            multiplicative_order(1, 1)
+        with self.assertRaises(ValueError):
+            multiplicative_order(1, 0)
+        with self.assertRaises(ValueError):
+            multiplicative_order(1, -5)
+
+    def test_invalid_type_raises(self):
+        with self.assertRaises(TypeError):
+            multiplicative_order("3", 7)
+        with self.assertRaises(TypeError):
+            multiplicative_order(3, "7")
+
+    def test_is_primitive_root(self):
+        self.assertTrue(is_primitive_root(3, 7))
+        self.assertFalse(is_primitive_root(2, 7))
+        # 8 is not cyclic, no primitive roots exist
+        self.assertFalse(is_primitive_root(3, 8))
+        self.assertFalse(is_primitive_root(2, 8))  # not coprime
+        self.assertFalse(is_primitive_root(1, 1))  # invalid modulus
+
+
 class TestChallengeGenerators(unittest.TestCase):
     def test_legendre_problem_answer_is_correct(self):
         rng = random.Random(0)
@@ -469,10 +580,18 @@ class TestChallengeGenerators(unittest.TestCase):
             self.assertIsInstance(prob["answer"], int)
             self.assertIn("Find the smallest prime factor of ", prob["question"])
 
+    def test_totient_problem_answer_is_correct(self):
+        rng = random.Random(0)
+        for _ in range(50):
+            prob = generate_problem("totient", rng)
+            self.assertEqual(prob["topic"], "totient")
+            self.assertIsInstance(prob["answer"], int)
+            self.assertIn("Compute Euler's totient phi(", prob["question"])
+
     def test_mixed_topic_produces_all_kinds(self):
         rng = random.Random(1)
-        topics = {generate_problem("mixed", rng)["topic"] for _ in range(60)}
-        self.assertEqual(topics, {"legendre", "crt", "ecdlp", "sqrtmod", "factor"})
+        topics = {generate_problem("mixed", rng)["topic"] for _ in range(80)}
+        self.assertEqual(topics, {"legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient"})
 
     def test_reproducible_with_same_seed(self):
         p1 = generate_problem("legendre", random.Random(99))

@@ -152,6 +152,74 @@ def format_factorization(factors: list) -> str:
             parts.append(f"{p}^{power}")
     return " * ".join(parts)
 
+def euler_phi(n: int) -> int:
+    """Euler's totient function phi(n). Counts positive integers <= n coprime to n."""
+    if not isinstance(n, int):
+        raise TypeError("n must be an integer")
+    if n < 1:
+        raise ValueError("n must be a positive integer >= 1")
+    if n == 1:
+        return 1
+    result = 1
+    for p, power in factorize(n):
+        result *= (p ** (power - 1)) * (p - 1)
+    return result
+
+def carmichael_lambda(n: int) -> int:
+    """Carmichael function lambda(n). Smallest m such that a^m == 1 (mod n) for all coprime a."""
+    if not isinstance(n, int):
+        raise TypeError("n must be an integer")
+    if n < 1:
+        raise ValueError("n must be a positive integer >= 1")
+    if n == 1:
+        return 1
+    lam = 1
+    for p, power in factorize(n):
+        if p == 2:
+            if power == 1:
+                pk_lam = 1
+            elif power == 2:
+                pk_lam = 2
+            else:
+                pk_lam = 1 << (power - 2)
+        else:
+            pk_lam = (p ** (power - 1)) * (p - 1)
+        lam = (lam * pk_lam) // gcd(lam, pk_lam)
+    return lam
+
+def multiplicative_order(a: int, m: int) -> int:
+    """Compute the multiplicative order of a modulo m.
+
+    Returns the smallest integer k >= 1 such that a^k == 1 (mod m).
+    Raises ValueError if m <= 1 or if gcd(a, m) != 1.
+    """
+    if not isinstance(a, int) or not isinstance(m, int):
+        raise TypeError("a and m must be integers")
+    if m <= 1:
+        raise ValueError("Modulus m must be greater than 1")
+    g = gcd(a, m)
+    if g != 1:
+        raise ValueError(f"{a} and {m} are not coprime (gcd = {g})")
+
+    a %= m
+    if a == 1:
+        return 1
+
+    lam = carmichael_lambda(m)
+    order = lam
+    for p, _ in factorize(lam):
+        while order % p == 0 and pow(a, order // p, m) == 1:
+            order //= p
+    return order
+
+def is_primitive_root(a: int, m: int) -> bool:
+    """Return True if a is a primitive root modulo m, False otherwise."""
+    if not isinstance(a, int) or not isinstance(m, int):
+        raise TypeError("a and m must be integers")
+    if m <= 1 or gcd(a, m) != 1:
+        return False
+    return multiplicative_order(a, m) == euler_phi(m)
+
 def _require_odd_prime(p: int) -> None:
     """Enforce the contract the Legendre symbol and Tonelli-Shanks rely on.
 
@@ -489,12 +557,26 @@ def _generate_factor_problem(rng: random.Random) -> dict:
         "answer": min_p,
     }
 
+_TOTIENT_NUMS = [
+    6, 8, 9, 10, 12, 14, 15, 16, 18, 20, 21, 22, 24, 25, 26, 27, 28, 30,
+    35, 36, 40, 42, 45, 49, 50, 54, 60, 72, 84, 100,
+]
+
+def _generate_totient_problem(rng: random.Random) -> dict:
+    n = rng.choice(_TOTIENT_NUMS)
+    return {
+        "topic": "totient",
+        "question": f"Compute Euler's totient phi({n})",
+        "answer": euler_phi(n),
+    }
+
 _TOPIC_GENERATORS = {
     "legendre": _generate_legendre_problem,
     "crt": _generate_crt_problem,
     "ecdlp": _generate_ecdlp_problem,
     "sqrtmod": _generate_sqrtmod_problem,
     "factor": _generate_factor_problem,
+    "totient": _generate_totient_problem,
 }
 
 def generate_problem(topic: str, rng: random.Random) -> dict:
@@ -609,9 +691,18 @@ def main():
     minv_cmd.add_argument("a", type=int, help="Integer a")
     minv_cmd.add_argument("m", type=int, help="Modulus m (> 1)")
 
+    # Totient
+    totient_cmd = subparsers.add_parser("totient", help="Euler's totient phi(n) and Carmichael lambda(n)")
+    totient_cmd.add_argument("n", type=int, help="Positive integer to evaluate (n >= 1)")
+
+    # Multiplicative Order
+    order_cmd = subparsers.add_parser("order", help="Multiplicative order of a modulo m")
+    order_cmd.add_argument("a", type=int, help="Base integer a")
+    order_cmd.add_argument("m", type=int, help="Modulus m (> 1)")
+
     # Challenge / quiz mode
-    challenge = subparsers.add_parser("challenge", help="Practice problems (Legendre, CRT, SqrtMod, Factor)")
-    challenge.add_argument("--topic", choices=["legendre", "crt", "ecdlp", "sqrtmod", "factor", "mixed"], default="mixed")
+    challenge = subparsers.add_parser("challenge", help="Practice problems (Legendre, CRT, SqrtMod, Factor, Totient)")
+    challenge.add_argument("--topic", choices=["legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "mixed"], default="mixed")
     challenge.add_argument("--count", type=int, default=5, help="Number of problems")
     challenge.add_argument("--seed", type=int, help="Random seed for reproducible problem sets")
     challenge.add_argument("--reveal", action="store_true",
@@ -778,6 +869,37 @@ def main():
             result.update({"command": "modinv", "a": args.a, "m": args.m, "inverse": inv})
             if not json_output:
                 print(f"{args.a}^-1 ≡ {inv} (mod {args.m})")
+
+        elif cmd == "totient" or args.command == "totient":
+            phi = euler_phi(args.n)
+            lam = carmichael_lambda(args.n)
+            cyclic = (phi == lam)
+            result.update({
+                "command": "totient",
+                "n": args.n,
+                "phi": phi,
+                "lambda": lam,
+                "is_cyclic": cyclic,
+            })
+            if not json_output:
+                cyclic_str = " (cyclic)" if cyclic else ""
+                print(f"phi({args.n}) = {phi}")
+                print(f"lambda({args.n}) = {lam}{cyclic_str}")
+
+        elif cmd == "order" or args.command == "order":
+            ord_k = multiplicative_order(args.a, args.m)
+            phi = euler_phi(args.m)
+            is_prim = (ord_k == phi)
+            result.update({
+                "command": "order",
+                "a": args.a,
+                "m": args.m,
+                "order": ord_k,
+                "is_primitive_root": is_prim,
+            })
+            if not json_output:
+                prim_str = " (primitive root)" if is_prim else ""
+                print(f"ord_{args.m}({args.a}) = {ord_k}{prim_str}")
 
         elif cmd == "challenge" or args.command == "challenge":
             if args.count < 1:

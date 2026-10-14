@@ -94,6 +94,19 @@ class TestSymlinkInvocation(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("360 = 2^3 * 3^2 * 5", out)
 
+    def test_totient_symlink(self):
+        script = self._make_symlink_script("foxmath-totient")
+        code, out, err = run("360", script=script)
+        self.assertEqual(code, 0)
+        self.assertIn("phi(360) = 96", out)
+        self.assertIn("lambda(360) = 12", out)
+
+    def test_order_symlink(self):
+        script = self._make_symlink_script("foxmath-order")
+        code, out, err = run("3", "7", script=script)
+        self.assertEqual(code, 0)
+        self.assertIn("ord_7(3) = 6 (primitive root)", out)
+
     def test_egcd_symlink(self):
         script = self._make_symlink_script("foxmath-egcd")
         code, out, err = run("30", "50", script=script)
@@ -438,6 +451,68 @@ class TestNormalUsage(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("smallest prime factor", out)
         self.assertIn("Answer:", out)
+
+    def test_totient(self):
+        code, out, err = run("totient", "360")
+        self.assertEqual(code, 0)
+        self.assertIn("phi(360) = 96", out)
+        self.assertIn("lambda(360) = 12", out)
+
+    def test_totient_cyclic(self):
+        code, out, err = run("totient", "7")
+        self.assertEqual(code, 0)
+        self.assertIn("phi(7) = 6", out)
+        self.assertIn("lambda(7) = 6 (cyclic)", out)
+
+    def test_totient_json(self):
+        code, out, err = run("totient", "360", "--json")
+        self.assertEqual(code, 0)
+        import json
+        data = json.loads(out)
+        self.assertEqual(data["command"], "totient")
+        self.assertEqual(data["n"], 360)
+        self.assertEqual(data["phi"], 96)
+        self.assertEqual(data["lambda"], 12)
+        self.assertFalse(data["is_cyclic"])
+
+    def test_totient_invalid_errors(self):
+        code, out, err = run("totient", "0")
+        self.assertEqual(code, 1)
+        self.assertIn("positive integer >= 1", err)
+
+    def test_order(self):
+        code, out, err = run("order", "3", "7")
+        self.assertEqual(code, 0)
+        self.assertIn("ord_7(3) = 6 (primitive root)", out)
+
+    def test_order_non_primitive(self):
+        code, out, err = run("order", "2", "7")
+        self.assertEqual(code, 0)
+        self.assertIn("ord_7(2) = 3", out)
+        self.assertNotIn("primitive root", out)
+
+    def test_order_json(self):
+        code, out, err = run("order", "3", "7", "--json")
+        self.assertEqual(code, 0)
+        import json
+        data = json.loads(out)
+        self.assertEqual(data["command"], "order")
+        self.assertEqual(data["a"], 3)
+        self.assertEqual(data["m"], 7)
+        self.assertEqual(data["order"], 6)
+        self.assertTrue(data["is_primitive_root"])
+
+    def test_order_non_coprime_errors(self):
+        code, out, err = run("order", "2", "8")
+        self.assertEqual(code, 1)
+        self.assertIn("not coprime", err)
+
+    def test_challenge_totient(self):
+        code, out, err = run("challenge", "--topic", "totient", "--count", "2", "--seed", "42", "--reveal")
+        self.assertEqual(code, 0)
+        self.assertIn("Euler's totient", out)
+        self.assertIn("Answer:", out)
+
 
 
 if __name__ == "__main__":

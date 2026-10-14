@@ -13,6 +13,8 @@ Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
 - Modular square root via Tonelli-Shanks (sqrtmod)
 - Deterministic Miller-Rabin primality test (isprime)
 - Prime factorization via Pollard's rho & trial division (factor)
+- Euler's totient φ(n) and Carmichael λ(n) (totient)
+- Multiplicative order and primitive roots (order)
 - Extended Euclidean algorithm (egcd) & Bézout coefficients
 - Modular multiplicative inverse (modinv)
 - Euler/Hermann Machin-like π approximation
@@ -25,8 +27,9 @@ Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
 - Challenge/quiz mode — practice problems with scoring, or a
   worksheet mode for self-study
 - Symlink-friendly (foxmath-legendre, foxmath-sqrtmod, foxmath-isprime,
-  foxmath-factor, foxmath-egcd, foxmath-modinv, foxmath-pi, foxmath-ecadd,
-  foxmath-ecmul, foxmath-crt, foxmath-cf, foxmath-challenge)
+  foxmath-factor, foxmath-totient, foxmath-order, foxmath-egcd,
+  foxmath-modinv, foxmath-pi, foxmath-ecadd, foxmath-ecmul,
+  foxmath-crt, foxmath-cf, foxmath-challenge)
 - JSON output mode
 
 ## Installation
@@ -47,7 +50,7 @@ Check which version you have installed:
 foxmath --version
 ```
 ```
-foxmath 0.10.1
+foxmath 0.11.0
 ```
 
 ## Usage Examples
@@ -110,6 +113,21 @@ foxmath modinv 3 11
 ```
 ```
 3^-1 ≡ 4 (mod 11)
+```
+
+```bash
+foxmath totient 360
+```
+```
+phi(360) = 96
+lambda(360) = 12
+```
+
+```bash
+foxmath order 3 7
+```
+```
+ord_7(3) = 6 (primitive root)
 ```
 
 ```bash
@@ -189,7 +207,7 @@ foxmath challenge --topic ecdlp --count 1 --seed 9 --reveal
 ```
 
 Drop `--reveal` to answer interactively instead, with scoring at the end.
-`--topic` accepts `legendre`, `crt`, `ecdlp`, `sqrtmod`, `factor`, or `mixed` (default).
+`--topic` accepts `legendre`, `crt`, `ecdlp`, `sqrtmod`, `factor`, `totient`, or `mixed` (default).
 
 ```bash
 # JSON output
