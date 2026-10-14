@@ -1,6 +1,6 @@
 # FoxMath 🦊
 
-**Minimalist CLI for math & cryptography exploration.**
+**Minimalist CLI and Python library for number theory and cryptography exploration: Pollard's ρ integer factorization, Euler's totient & Carmichael functions, multiplicative order, Tonelli-Shanks modular roots, Weierstrass elliptic curve arithmetic, Chinese Remainder Theorem, and continued fractions.**
 
 **More about me / other projects:** [abhrankan.duckdns.org](https://abhrankan.duckdns.org)
 
