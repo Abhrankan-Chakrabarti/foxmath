@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "foxmath"
-version = "0.13.0"
-description = "Minimalist CLI for math & cryptography exploration 🦊"
+version = "0.13.1"
+description = "Minimalist CLI & library for number theory and cryptography: BSGS discrete log solver, arithmetic functions (μ, σ, τ), Jacobi symbol & Solovay–Strassen test, Pollard's ρ factorization, totient & Carmichael functions, Tonelli-Shanks roots, interactive REPL, Weierstrass elliptic curves, Chinese Remainder Theorem, and continued fractions."
 readme = "README.md"
 license = {text = "MIT"}
 authors = [

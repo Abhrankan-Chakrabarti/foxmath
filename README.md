@@ -1,6 +1,6 @@
 # FoxMath 🦊
 
-**Minimalist CLI and Python library for number theory and cryptography exploration: Baby-step Giant-step discrete logarithm solver, classical arithmetic functions (μ, σ, τ), Jacobi symbol & Solovay–Strassen primality test, Pollard's ρ integer factorization, Euler's totient & Carmichael functions, multiplicative order, Tonelli-Shanks modular roots, interactive REPL, Weierstrass elliptic curve arithmetic, Chinese Remainder Theorem, and continued fractions.**
+**Minimalist CLI & library for number theory and cryptography: BSGS discrete log solver, arithmetic functions (μ, σ, τ), Jacobi symbol & Solovay–Strassen test, Pollard's ρ factorization, totient & Carmichael functions, Tonelli-Shanks roots, interactive REPL, Weierstrass elliptic curves, Chinese Remainder Theorem, and continued fractions.**
 
 **More about me / other projects:** [abhrankan.duckdns.org](https://abhrankan.duckdns.org)
 
@@ -57,7 +57,7 @@ Check which version you have installed:
 foxmath --version
 ```
 ```
-foxmath 0.13.0
+foxmath 0.13.1
 ```
 
 ## Usage Examples
@@ -184,7 +184,7 @@ tau(12) = 6
 foxmath repl
 ```
 ```
-FoxMath 0.13.0 Interactive REPL 🦊
+FoxMath 0.13.1 Interactive REPL 🦊
 All math functions loaded. Type exit() or Ctrl-Z + Enter to quit.
 >>> jacobi_symbol(10, 13)
 1
