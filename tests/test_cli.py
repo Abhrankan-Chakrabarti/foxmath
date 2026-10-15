@@ -201,6 +201,18 @@ class TestSymlinkInvocation(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("Result point: (66, 24)", out)
 
+    def test_rsa_symlink(self):
+        script = self._make_symlink_script("foxmath-rsa")
+        code, out, err = run("encrypt", "42", "17", "3233", script=script)
+        self.assertEqual(code, 0)
+        self.assertIn("Ciphertext c = 2557", out)
+
+    def test_dh_symlink(self):
+        script = self._make_symlink_script("foxmath-dh")
+        code, out, err = run("derive", "4", "8", "23", script=script)
+        self.assertEqual(code, 0)
+        self.assertIn("Shared secret S = 2", out)
+
     def test_symlink_with_json(self):
         script = self._make_symlink_script("foxmath-legendre")
         code, out, err = run("2", "7", "--json", script=script)
@@ -693,6 +705,136 @@ class TestNormalUsage(unittest.TestCase):
         code, out, err = run("challenge", "--topic", "jacobi", "--count", "3", "--seed", "42", "--reveal")
         self.assertEqual(code, 0)
         self.assertIn("Jacobi symbol (", out)
+        self.assertIn("Answer:", out)
+
+    def test_rsa_keygen(self):
+        code, out, err = run("rsa", "keygen", "--bits", "32", "--seed", "42")
+        self.assertEqual(code, 0)
+        self.assertIn("RSA 32-bit Keypair:", out)
+        self.assertIn("Modulus   (n) =", out)
+        self.assertIn("Public  e     =", out)
+        self.assertIn("Private d     =", out)
+
+    def test_rsa_keygen_json(self):
+        code, out, err = run("rsa", "keygen", "--bits", "32", "--seed", "42", "--json")
+        self.assertEqual(code, 0)
+        import json
+        data = json.loads(out)
+        self.assertEqual(data["command"], "rsa")
+        self.assertEqual(data["action"], "keygen")
+        self.assertEqual(data["e"], 65537)
+        self.assertIn("p", data)
+        self.assertIn("q", data)
+        self.assertIn("d", data)
+        self.assertIn("n", data)
+
+    def test_rsa_encrypt_decrypt(self):
+        # encrypt
+        code, out, err = run("rsa", "encrypt", "42", "17", "3233")
+        self.assertEqual(code, 0)
+        self.assertIn("Ciphertext c = 2557", out)
+
+        # decrypt
+        code, out, err = run("rsa", "decrypt", "2557", "413", "3233")
+        self.assertEqual(code, 0)
+        self.assertIn("Decrypted message m = 42", out)
+
+        # decrypt with CRT
+        code, out, err = run("rsa", "decrypt", "2557", "413", "3233", "--p", "61", "--q", "53")
+        self.assertEqual(code, 0)
+        self.assertIn("Decrypted message m = 42 (CRT accelerated)", out)
+
+    def test_rsa_encrypt_decrypt_json(self):
+        code, out, err = run("rsa", "encrypt", "42", "17", "3233", "--json")
+        self.assertEqual(code, 0)
+        import json
+        data = json.loads(out)
+        self.assertEqual(data["c"], 2557)
+
+        code, out, err = run("rsa", "decrypt", "2557", "413", "3233", "--json")
+        self.assertEqual(code, 0)
+        data = json.loads(out)
+        self.assertEqual(data["m"], 42)
+        self.assertEqual(data["crt"], False)
+
+    def test_rsa_crack(self):
+        code, out, err = run("rsa", "crack", "3233", "17", "2790")
+        self.assertEqual(code, 0)
+        self.assertIn("Factored n = 3233:", out)
+        self.assertIn("p = 61", out)
+        self.assertIn("q = 53", out)
+        self.assertIn("Recovered d  = 413", out)
+        self.assertIn("Decrypted m  = 65", out)
+
+    def test_rsa_crack_json(self):
+        code, out, err = run("rsa", "crack", "3233", "17", "--c", "2790", "--json")
+        self.assertEqual(code, 0)
+        import json
+        data = json.loads(out)
+        self.assertEqual(data["command"], "rsa")
+        self.assertEqual(data["action"], "crack")
+        self.assertEqual(data["p"], 61)
+        self.assertEqual(data["q"], 53)
+        self.assertEqual(data["d"], 413)
+        self.assertEqual(data["m"], 65)
+
+    def test_dh_keygen(self):
+        code, out, err = run("dh", "keygen", "23", "5", "--priv", "4")
+        self.assertEqual(code, 0)
+        self.assertIn("Diffie-Hellman Keypair (p=23, g=5):", out)
+        self.assertIn("Private key (a) = 4", out)
+        self.assertIn("Public key  (A) = 4", out)
+
+    def test_dh_keygen_json(self):
+        code, out, err = run("dh", "keygen", "23", "5", "--seed", "42", "--json")
+        self.assertEqual(code, 0)
+        import json
+        data = json.loads(out)
+        self.assertEqual(data["command"], "dh")
+        self.assertEqual(data["action"], "keygen")
+        self.assertEqual(data["p"], 23)
+        self.assertEqual(data["g"], 5)
+        self.assertIn("private_key", data)
+        self.assertIn("public_key", data)
+
+    def test_dh_derive_and_crack(self):
+        # derive
+        code, out, err = run("dh", "derive", "4", "8", "23")
+        self.assertEqual(code, 0)
+        self.assertIn("Shared secret S = 2", out)
+
+        # crack
+        code, out, err = run("dh", "crack", "5", "4", "23")
+        self.assertEqual(code, 0)
+        self.assertIn("Discrete logarithm solved via BSGS:", out)
+        self.assertIn("Recovered private key a = 4", out)
+
+    def test_dh_derive_and_crack_json(self):
+        code, out, err = run("dh", "derive", "4", "8", "23", "--json")
+        self.assertEqual(code, 0)
+        import json
+        data = json.loads(out)
+        self.assertEqual(data["command"], "dh")
+        self.assertEqual(data["action"], "derive")
+        self.assertEqual(data["shared_secret"], 2)
+
+        code, out, err = run("dh", "crack", "5", "4", "23", "--json")
+        self.assertEqual(code, 0)
+        data = json.loads(out)
+        self.assertEqual(data["command"], "dh")
+        self.assertEqual(data["action"], "crack")
+        self.assertEqual(data["private_key"], 4)
+
+    def test_challenge_rsa(self):
+        code, out, err = run("challenge", "--topic", "rsa", "--count", "3", "--seed", "42", "--reveal")
+        self.assertEqual(code, 0)
+        self.assertIn("In RSA with e =", out)
+        self.assertIn("Answer:", out)
+
+    def test_challenge_dh(self):
+        code, out, err = run("challenge", "--topic", "dh", "--count", "3", "--seed", "42", "--reveal")
+        self.assertEqual(code, 0)
+        self.assertIn("In Diffie-Hellman with p =", out)
         self.assertIn("Answer:", out)
 
 

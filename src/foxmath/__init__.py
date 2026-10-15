@@ -32,6 +32,13 @@ from foxmath.foxmath import (
     modinv,
     crt,
     cmd_repl,
+    rsa_keygen,
+    rsa_encrypt,
+    rsa_decrypt,
+    rsa_crack,
+    dh_keygen,
+    dh_derive,
+    dh_crack,
 )
 
 __all__ = [
@@ -66,4 +73,11 @@ __all__ = [
     "tau",
     "sigma",
     "cmd_repl",
+    "rsa_keygen",
+    "rsa_encrypt",
+    "rsa_decrypt",
+    "rsa_crack",
+    "dh_keygen",
+    "dh_derive",
+    "dh_crack",
 ]

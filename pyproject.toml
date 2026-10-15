@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "foxmath"
-version = "0.13.1"
-description = "Minimalist CLI & library for number theory and cryptography: BSGS discrete log solver, arithmetic functions (μ, σ, τ), Jacobi symbol & Solovay–Strassen test, Pollard's ρ factorization, totient & Carmichael functions, Tonelli-Shanks roots, interactive REPL, Weierstrass elliptic curves, Chinese Remainder Theorem, and continued fractions."
+version = "0.14.0"
+description = "Minimalist CLI & library for number theory and cryptography: RSA & Diffie-Hellman cryptosystems, BSGS discrete log solver, arithmetic functions (μ, σ, τ), Jacobi symbol & Solovay–Strassen test, Pollard's ρ factorization, totient & Carmichael functions, Tonelli-Shanks roots, interactive REPL, Weierstrass elliptic curves, Chinese Remainder Theorem, and continued fractions."
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
@@ -49,3 +49,5 @@ foxmath-ecmul = "foxmath.foxmath:main"
 foxmath-crt = "foxmath.foxmath:main"
 foxmath-cf = "foxmath.foxmath:main"
 foxmath-challenge = "foxmath.foxmath:main"
+foxmath-rsa = "foxmath.foxmath:main"
+foxmath-dh = "foxmath.foxmath:main"

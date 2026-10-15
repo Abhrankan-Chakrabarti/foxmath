@@ -637,6 +637,208 @@ def cf_convergents(cf):
         k2, k1 = k1, k
     return convergents
 
+# ------------------- Cryptosystems (RSA & Diffie-Hellman) -------------------
+
+def _generate_prime(bits: int, rng: random.Random) -> int:
+    """Generate a probable prime with the exact bit length specified."""
+    if bits < 2:
+        raise ValueError("Prime bit length must be at least 2")
+    if bits == 2:
+        return rng.choice([2, 3])
+    while True:
+        val = rng.getrandbits(bits)
+        val |= (1 << (bits - 1)) | 1
+        if is_prime(val):
+            return val
+
+def rsa_keygen(bits: int = 32, e: int = 65537, seed: int = None) -> dict:
+    """Generate an RSA key pair (p, q, n, e, d) with CRT components.
+
+    bits: Total modulus bit length (n = p * q). Must be >= 8.
+    e: Public exponent (default 65537). Must be coprime to lambda(n).
+    seed: Optional random seed for deterministic key generation.
+    """
+    if not isinstance(bits, int) or not isinstance(e, int):
+        raise TypeError("bits and e must be integers")
+    if bits < 8:
+        raise ValueError("RSA modulus bit length must be at least 8")
+    if e < 3 or e % 2 == 0:
+        raise ValueError("Public exponent e must be an odd integer >= 3")
+
+    rng = random.Random(seed)
+    p_bits = bits // 2
+    q_bits = bits - p_bits
+
+    for _ in range(5000):
+        p = _generate_prime(p_bits, rng)
+        q = _generate_prime(q_bits, rng)
+        if p == q:
+            continue
+        if p < q:
+            p, q = q, p
+
+        n = p * q
+        phi = (p - 1) * (q - 1)
+        lam = phi // gcd(p - 1, q - 1)
+
+        if gcd(e, lam) == 1:
+            d = mod_inverse(e, lam)
+            dp = d % (p - 1)
+            dq = d % (q - 1)
+            qinv = mod_inverse(q, p)
+            return {
+                "p": p,
+                "q": q,
+                "n": n,
+                "e": e,
+                "d": d,
+                "phi": phi,
+                "lambda": lam,
+                "dp": dp,
+                "dq": dq,
+                "qinv": qinv,
+            }
+
+    raise RuntimeError(f"Failed to generate RSA key with bits={bits} and e={e}")
+
+def rsa_encrypt(m: int, e: int, n: int) -> int:
+    """Encrypt message m with public key (e, n): c = m^e (mod n)."""
+    if not isinstance(m, int) or not isinstance(e, int) or not isinstance(n, int):
+        raise TypeError("m, e, and n must be integers")
+    if n <= 1:
+        raise ValueError("Modulus n must be greater than 1")
+    if e < 1:
+        raise ValueError("Exponent e must be >= 1")
+    if m < 0 or m >= n:
+        raise ValueError(f"Message m must satisfy 0 <= m < n (got m={m}, n={n})")
+    return pow(m, e, n)
+
+def rsa_decrypt(c: int, d: int, n: int, p: int = None, q: int = None) -> int:
+    """Decrypt ciphertext c with private key (d, n), optionally using CRT acceleration.
+
+    If factors p and q are provided (where p * q == n), evaluates decryption
+    via the Chinese Remainder Theorem:
+      m1 = c^(d mod p-1) mod p
+      m2 = c^(d mod q-1) mod q
+      m = m2 + (q^-1 * (m1 - m2) mod p) * q
+    """
+    if not isinstance(c, int) or not isinstance(d, int) or not isinstance(n, int):
+        raise TypeError("c, d, and n must be integers")
+    if n <= 1:
+        raise ValueError("Modulus n must be greater than 1")
+    if d < 1:
+        raise ValueError("Exponent d must be >= 1")
+    if c < 0 or c >= n:
+        raise ValueError(f"Ciphertext c must satisfy 0 <= c < n (got c={c}, n={n})")
+
+    if (p is None) != (q is None):
+        raise ValueError("Both p and q must be provided for CRT acceleration, or neither")
+
+    if p is not None and q is not None:
+        if not isinstance(p, int) or not isinstance(q, int):
+            raise TypeError("p and q must be integers")
+        if p * q != n:
+            raise ValueError(f"Invalid factors: p * q != n ({p} * {q} != {n})")
+        dp = d % (p - 1)
+        dq = d % (q - 1)
+        qinv = mod_inverse(q, p)
+        m1 = pow(c, dp, p)
+        m2 = pow(c, dq, q)
+        h = (qinv * (m1 - m2)) % p
+        return m2 + h * q
+
+    return pow(c, d, n)
+
+def rsa_crack(n: int, e: int, c: int = None) -> dict:
+    """Recover RSA private key (d) by factoring n via Pollard's rho, and decrypt c if given."""
+    if not isinstance(n, int) or not isinstance(e, int):
+        raise TypeError("n and e must be integers")
+    if n <= 1:
+        raise ValueError("Modulus n must be greater than 1")
+    if e < 1:
+        raise ValueError("Exponent e must be >= 1")
+    if c is not None:
+        if not isinstance(c, int):
+            raise TypeError("c must be an integer")
+        if c < 0 or c >= n:
+            raise ValueError(f"Ciphertext c must satisfy 0 <= c < n (got c={c}, n={n})")
+
+    factors = factorize(n)
+    primes = []
+    for prime, power in factors:
+        primes.extend([prime] * power)
+
+    if len(primes) != 2:
+        raise ValueError(f"Modulus {n} must be a product of two primes (found {len(primes)} factors)")
+
+    p, q = primes[0], primes[1]
+    if p < q:
+        p, q = q, p
+
+    phi = (p - 1) * (q - 1)
+    lam = phi // gcd(p - 1, q - 1)
+
+    if gcd(e, lam) != 1:
+        raise ValueError(f"Cannot invert e={e} modulo lambda(n)={lam}")
+
+    d = mod_inverse(e, lam)
+    res = {
+        "n": n,
+        "e": e,
+        "p": p,
+        "q": q,
+        "phi": phi,
+        "lambda": lam,
+        "d": d,
+    }
+    if c is not None:
+        res["c"] = c
+        res["m"] = rsa_decrypt(c, d, n, p, q)
+    return res
+
+def dh_keygen(p: int, g: int, private_key: int = None, seed: int = None) -> dict:
+    """Generate a Diffie-Hellman key pair: private scalar a and public key A = g^a mod p."""
+    if not isinstance(p, int) or not isinstance(g, int):
+        raise TypeError("p and g must be integers")
+    if p <= 2 or not is_prime(p):
+        raise ValueError("Diffie-Hellman modulus p must be a prime > 2")
+    if g <= 1 or g >= p:
+        raise ValueError(f"Generator g must satisfy 1 < g < p (got g={g})")
+
+    if private_key is not None:
+        if not isinstance(private_key, int):
+            raise TypeError("private_key must be an integer")
+        if private_key < 2 or private_key >= p - 1:
+            raise ValueError(f"private_key must satisfy 2 <= private_key <= p-2 (got {private_key})")
+        a = private_key
+    else:
+        rng = random.Random(seed)
+        a = rng.randint(2, p - 2)
+
+    A = pow(g, a, p)
+    return {
+        "p": p,
+        "g": g,
+        "private_key": a,
+        "public_key": A,
+    }
+
+def dh_derive(private_key: int, peer_public_key: int, p: int) -> int:
+    """Derive Diffie-Hellman shared secret: S = peer_public_key^private_key mod p."""
+    if not isinstance(private_key, int) or not isinstance(peer_public_key, int) or not isinstance(p, int):
+        raise TypeError("private_key, peer_public_key, and p must be integers")
+    if p <= 2:
+        raise ValueError("Modulus p must be greater than 2")
+    if private_key < 1:
+        raise ValueError("private_key must be >= 1")
+    if peer_public_key < 1 or peer_public_key >= p:
+        raise ValueError(f"peer_public_key must satisfy 1 <= key < p (got {peer_public_key})")
+    return pow(peer_public_key, private_key, p)
+
+def dh_crack(g: int, public_key: int, p: int) -> int:
+    """Recover Diffie-Hellman private key from public key using BSGS discrete logarithm solver."""
+    return discrete_log(g, public_key, p)
+
 # ------------------- Challenge / Quiz Mode -------------------
 
 _SMALL_ODD_PRIMES = [3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47,
@@ -755,6 +957,46 @@ def _generate_jacobi_problem(rng: random.Random) -> dict:
         "answer": jacobi_symbol(a, n),
     }
 
+_RSA_PRIMES = [3, 5, 7, 11, 13, 17, 19, 23]
+
+def _generate_rsa_problem(rng: random.Random) -> dict:
+    p, q = rng.sample(_RSA_PRIMES, 2)
+    n = p * q
+    phi = (p - 1) * (q - 1)
+    possible_e = [e for e in (3, 5, 7, 11, 13, 17) if gcd(e, phi) == 1]
+    e = rng.choice(possible_e)
+    m = rng.randint(2, min(n - 1, 15))
+    c = pow(m, e, n)
+    return {
+        "topic": "rsa",
+        "question": f"In RSA with e = {e} and n = {n}, find ciphertext c for message m = {m} (c ≡ m^{e} mod {n})",
+        "answer": c,
+    }
+
+_DH_PARAMS = [
+    (11, 2), (13, 2), (17, 3), (19, 2), (23, 5), (29, 2), (31, 3), (41, 6), (43, 3)
+]
+
+def _generate_dh_problem(rng: random.Random) -> dict:
+    p, g = rng.choice(_DH_PARAMS)
+    a = rng.randint(2, 6)
+    if rng.choice([True, False]):
+        A = pow(g, a, p)
+        return {
+            "topic": "dh",
+            "question": f"In Diffie-Hellman with p = {p} and generator g = {g}, find public key A for private key a = {a} (A ≡ {g}^{a} mod {p})",
+            "answer": A,
+        }
+    else:
+        b = rng.randint(2, 6)
+        B = pow(g, b, p)
+        s = pow(B, a, p)
+        return {
+            "topic": "dh",
+            "question": f"In Diffie-Hellman with p = {p}, Alice's private key is a = {a} and Bob's public key is B = {B}. Find shared secret S (S ≡ {B}^{a} mod {p})",
+            "answer": s,
+        }
+
 _TOPIC_GENERATORS = {
     "legendre": _generate_legendre_problem,
     "crt": _generate_crt_problem,
@@ -764,6 +1006,8 @@ _TOPIC_GENERATORS = {
     "totient": _generate_totient_problem,
     "dlog": _generate_dlog_problem,
     "jacobi": _generate_jacobi_problem,
+    "rsa": _generate_rsa_problem,
+    "dh": _generate_dh_problem,
 }
 
 def generate_problem(topic: str, rng: random.Random) -> dict:
@@ -786,8 +1030,9 @@ def cmd_repl() -> None:
     banner = (
         f"FoxMath {_package_version()} Interactive REPL 🦊\n"
         "All math functions loaded. Type exit() or Ctrl-Z + Enter to quit.\n"
-        "Functions: jacobi_symbol, solovay_strassen, discrete_log (dlog),\n"
-        "           mobius, sigma, tau, factorize, is_prime, euler_phi, ..."
+        "Functions: rsa_keygen, rsa_encrypt, rsa_decrypt, rsa_crack,\n"
+        "           dh_keygen, dh_derive, dh_crack, jacobi_symbol, solovay_strassen,\n"
+        "           discrete_log (dlog), mobius, sigma, tau, factorize, is_prime, ..."
     )
     print(banner)
     namespace = {
@@ -822,6 +1067,13 @@ def cmd_repl() -> None:
         "CURVES": CURVES,
         "continued_fraction": continued_fraction,
         "cf_convergents": cf_convergents,
+        "rsa_keygen": rsa_keygen,
+        "rsa_encrypt": rsa_encrypt,
+        "rsa_decrypt": rsa_decrypt,
+        "rsa_crack": rsa_crack,
+        "dh_keygen": dh_keygen,
+        "dh_derive": dh_derive,
+        "dh_crack": dh_crack,
     }
     code.interact(banner="", local=namespace, exitmsg="")
 
@@ -968,12 +1220,59 @@ def main():
     sol_cmd.add_argument("n", type=int, help="Integer to test")
     sol_cmd.add_argument("--rounds", type=int, default=20, help="Number of test rounds (default: 20)")
 
+    # RSA
+    rsa_parser = subparsers.add_parser("rsa", help="Toy RSA cryptosystem (keygen, encrypt, decrypt, crack)")
+    rsa_sub = rsa_parser.add_subparsers(dest="rsa_action", required=True)
+
+    rsa_keygen_cmd = rsa_sub.add_parser("keygen", help="Generate RSA keypair")
+    rsa_keygen_cmd.add_argument("--bits", type=int, default=32, help="Modulus bit length (default: 32)")
+    rsa_keygen_cmd.add_argument("--e", type=int, default=65537, help="Public exponent e (default: 65537)")
+    rsa_keygen_cmd.add_argument("--seed", type=int, default=None, help="Deterministic random seed")
+
+    rsa_enc_cmd = rsa_sub.add_parser("encrypt", help="Encrypt message: c = m^e mod n")
+    rsa_enc_cmd.add_argument("m", type=int, help="Message integer (0 <= m < n)")
+    rsa_enc_cmd.add_argument("e", type=int, help="Public exponent e")
+    rsa_enc_cmd.add_argument("n", type=int, help="Modulus n")
+
+    rsa_dec_cmd = rsa_sub.add_parser("decrypt", help="Decrypt ciphertext: m = c^d mod n")
+    rsa_dec_cmd.add_argument("c", type=int, help="Ciphertext integer (0 <= c < n)")
+    rsa_dec_cmd.add_argument("d", type=int, help="Private exponent d")
+    rsa_dec_cmd.add_argument("n", type=int, help="Modulus n")
+    rsa_dec_cmd.add_argument("--p", type=int, default=None, help="Prime factor p for CRT acceleration")
+    rsa_dec_cmd.add_argument("--q", type=int, default=None, help="Prime factor q for CRT acceleration")
+
+    rsa_crack_cmd = rsa_sub.add_parser("crack", help="Factor modulus n via Pollard's rho, recover d, and decrypt c if given")
+    rsa_crack_cmd.add_argument("n", type=int, help="Modulus n")
+    rsa_crack_cmd.add_argument("e", type=int, help="Public exponent e")
+    rsa_crack_cmd.add_argument("c", type=int, nargs="?", default=None, help="Optional ciphertext c to decrypt")
+    rsa_crack_cmd.add_argument("--c", dest="opt_c", type=int, default=None, help="Optional ciphertext c to decrypt")
+
+    # Diffie-Hellman
+    dh_parser = subparsers.add_parser("dh", help="Diffie-Hellman key exchange (keygen, derive, crack)")
+    dh_sub = dh_parser.add_subparsers(dest="dh_action", required=True)
+
+    dh_keygen_cmd = dh_sub.add_parser("keygen", help="Generate private/public keypair")
+    dh_keygen_cmd.add_argument("p", type=int, help="Prime modulus p (> 2)")
+    dh_keygen_cmd.add_argument("g", type=int, help="Generator g (1 < g < p)")
+    dh_keygen_cmd.add_argument("--priv", "--private-key", dest="priv", type=int, default=None, help="Custom private scalar a (2 <= a <= p-2)")
+    dh_keygen_cmd.add_argument("--seed", type=int, default=None, help="Deterministic random seed")
+
+    dh_derive_cmd = dh_sub.add_parser("derive", help="Derive shared secret: S = peer_public^private mod p")
+    dh_derive_cmd.add_argument("private_key", type=int, help="Your private key scalar a")
+    dh_derive_cmd.add_argument("peer_public_key", type=int, help="Peer's public key B")
+    dh_derive_cmd.add_argument("p", type=int, help="Prime modulus p")
+
+    dh_crack_cmd = dh_sub.add_parser("crack", help="Recover private key a from public key A = g^a mod p via BSGS")
+    dh_crack_cmd.add_argument("g", type=int, help="Generator g")
+    dh_crack_cmd.add_argument("public_key", type=int, help="Public key A")
+    dh_crack_cmd.add_argument("p", type=int, help="Prime modulus p")
+
     # Interactive REPL
     subparsers.add_parser("repl", help="Interactive FoxMath REPL")
 
     # Challenge / quiz mode
-    challenge = subparsers.add_parser("challenge", help="Practice problems (Legendre, Jacobi, CRT, SqrtMod, Factor, Totient, DLog)")
-    challenge.add_argument("--topic", choices=["legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "dlog", "jacobi", "mixed"], default="mixed")
+    challenge = subparsers.add_parser("challenge", help="Practice problems (Legendre, Jacobi, CRT, SqrtMod, Factor, Totient, DLog, RSA, DH)")
+    challenge.add_argument("--topic", choices=["legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "dlog", "jacobi", "rsa", "dh", "mixed"], default="mixed")
     challenge.add_argument("--count", type=int, default=5, help="Number of problems")
     challenge.add_argument("--seed", type=int, help="Random seed for reproducible problem sets")
     challenge.add_argument("--reveal", action="store_true",
@@ -1224,6 +1523,85 @@ def main():
                         print(f"{args.n} is probably prime (Solovay-Strassen, {args.rounds} rounds)")
                 else:
                     print(f"{args.n} is composite")
+
+        elif cmd == "rsa" or args.command == "rsa":
+            if args.rsa_action == "keygen":
+                keys = rsa_keygen(bits=args.bits, e=args.e, seed=args.seed)
+                result.update({"command": "rsa", "action": "keygen", **keys})
+                if not json_output:
+                    print(f"RSA {args.bits}-bit Keypair:")
+                    print(f"  Modulus   (n) = {keys['n']}")
+                    print(f"  Public  e     = {keys['e']}")
+                    print(f"  Private d     = {keys['d']}")
+                    print(f"  Prime p       = {keys['p']}")
+                    print(f"  Prime q       = {keys['q']}")
+                    print(f"  Euler phi     = {keys['phi']}")
+                    print(f"  Carmichael λ  = {keys['lambda']}")
+
+            elif args.rsa_action == "encrypt":
+                c = rsa_encrypt(args.m, args.e, args.n)
+                result.update({"command": "rsa", "action": "encrypt", "m": args.m, "e": args.e, "n": args.n, "c": c})
+                if not json_output:
+                    print(f"Ciphertext c = {c}")
+
+            elif args.rsa_action == "decrypt":
+                m = rsa_decrypt(args.c, args.d, args.n, p=args.p, q=args.q)
+                crt_used = args.p is not None and args.q is not None
+                result.update({"command": "rsa", "action": "decrypt", "c": args.c, "d": args.d, "n": args.n, "m": m, "crt": crt_used})
+                if not json_output:
+                    suffix = " (CRT accelerated)" if crt_used else ""
+                    print(f"Decrypted message m = {m}{suffix}")
+
+            elif args.rsa_action == "crack":
+                c_val = args.c if args.c is not None else args.opt_c
+                cracked = rsa_crack(args.n, args.e, c=c_val)
+                result.update({"command": "rsa", "action": "crack", **cracked})
+                if not json_output:
+                    print(f"Factored n = {args.n}:")
+                    print(f"  p = {cracked['p']}")
+                    print(f"  q = {cracked['q']}")
+                    print(f"  Euler phi    = {cracked['phi']}")
+                    print(f"  Carmichael λ = {cracked['lambda']}")
+                    print(f"  Recovered d  = {cracked['d']}")
+                    if "m" in cracked:
+                        print(f"  Decrypted m  = {cracked['m']}")
+
+        elif cmd == "dh" or args.command == "dh":
+            if args.dh_action == "keygen":
+                keys = dh_keygen(args.p, args.g, private_key=args.priv, seed=args.seed)
+                result.update({"command": "dh", "action": "keygen", **keys})
+                if not json_output:
+                    print(f"Diffie-Hellman Keypair (p={args.p}, g={args.g}):")
+                    print(f"  Private key (a) = {keys['private_key']}")
+                    print(f"  Public key  (A) = {keys['public_key']}")
+
+            elif args.dh_action == "derive":
+                s = dh_derive(args.private_key, args.peer_public_key, args.p)
+                result.update({
+                    "command": "dh",
+                    "action": "derive",
+                    "private_key": args.private_key,
+                    "peer_public_key": args.peer_public_key,
+                    "p": args.p,
+                    "shared_secret": s,
+                })
+                if not json_output:
+                    print(f"Shared secret S = {s}")
+
+            elif args.dh_action == "crack":
+                priv = dh_crack(args.g, args.public_key, args.p)
+                result.update({
+                    "command": "dh",
+                    "action": "crack",
+                    "g": args.g,
+                    "public_key": args.public_key,
+                    "p": args.p,
+                    "private_key": priv,
+                })
+                if not json_output:
+                    print("Discrete logarithm solved via BSGS:")
+                    print(f"  Recovered private key a = {priv}")
+                    print(f"  Verification: {args.g}^{priv} ≡ {args.public_key} (mod {args.p})")
 
         elif cmd == "repl" or args.command == "repl":
             cmd_repl()

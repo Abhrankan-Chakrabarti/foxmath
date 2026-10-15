@@ -700,10 +700,26 @@ class TestChallengeGenerators(unittest.TestCase):
             self.assertIn(prob["answer"], (-1, 0, 1))
             self.assertIn("Jacobi symbol (", prob["question"])
 
+    def test_rsa_problem_answer_is_correct(self):
+        rng = random.Random(0)
+        for _ in range(50):
+            prob = generate_problem("rsa", rng)
+            self.assertEqual(prob["topic"], "rsa")
+            self.assertIsInstance(prob["answer"], int)
+            self.assertIn("In RSA with e =", prob["question"])
+
+    def test_dh_problem_answer_is_correct(self):
+        rng = random.Random(0)
+        for _ in range(50):
+            prob = generate_problem("dh", rng)
+            self.assertEqual(prob["topic"], "dh")
+            self.assertIsInstance(prob["answer"], int)
+            self.assertIn("In Diffie-Hellman with p =", prob["question"])
+
     def test_mixed_topic_produces_all_kinds(self):
         rng = random.Random(1)
-        topics = {generate_problem("mixed", rng)["topic"] for _ in range(150)}
-        self.assertEqual(topics, {"legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "dlog", "jacobi"})
+        topics = {generate_problem("mixed", rng)["topic"] for _ in range(250)}
+        self.assertEqual(topics, {"legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "dlog", "jacobi", "rsa", "dh"})
 
     def test_reproducible_with_same_seed(self):
         p1 = generate_problem("legendre", random.Random(99))

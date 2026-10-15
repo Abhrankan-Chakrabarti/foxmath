@@ -1,6 +1,6 @@
 # FoxMath 🦊
 
-**Minimalist CLI & library for number theory and cryptography: BSGS discrete log solver, arithmetic functions (μ, σ, τ), Jacobi symbol & Solovay–Strassen test, Pollard's ρ factorization, totient & Carmichael functions, Tonelli-Shanks roots, interactive REPL, Weierstrass elliptic curves, Chinese Remainder Theorem, and continued fractions.**
+**Minimalist CLI & library for number theory and cryptography: RSA & Diffie-Hellman cryptosystems, BSGS discrete log solver, arithmetic functions (μ, σ, τ), Jacobi symbol & Solovay–Strassen test, Pollard's ρ factorization, totient & Carmichael functions, Tonelli-Shanks roots, interactive REPL, Weierstrass elliptic curves, Chinese Remainder Theorem, and continued fractions.**
 
 **More about me / other projects:** [abhrankan.duckdns.org](https://abhrankan.duckdns.org)
 
@@ -9,6 +9,8 @@ One binary. Clean output. Zero footguns. Educational by design.
 Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
 
 ## Features
+- Textbook RSA cryptosystem: key generation, encryption, CRT-accelerated decryption, and Pollard's ρ factoring attack (rsa)
+- Diffie-Hellman key exchange: key generation, shared secret derivation, and BSGS discrete log attack (dh)
 - Legendre symbol
 - Jacobi symbol (jacobi)
 - Solovay–Strassen probabilistic primality test (solovay)
@@ -30,13 +32,13 @@ Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
 - Chinese Remainder Theorem solver (handles non-coprime moduli)
 - Continued fraction expansion and convergents
 - Challenge/quiz mode — practice problems with scoring, or a
-  worksheet mode for self-study
-- Symlink-friendly (foxmath-legendre, foxmath-jacobi, foxmath-solovay,
-  foxmath-repl, foxmath-sqrtmod, foxmath-isprime, foxmath-factor,
-  foxmath-totient, foxmath-order, foxmath-dlog, foxmath-mobius,
-  foxmath-sigma, foxmath-tau, foxmath-egcd, foxmath-modinv,
-  foxmath-pi, foxmath-ecadd, foxmath-ecmul, foxmath-crt,
-  foxmath-cf, foxmath-challenge)
+  worksheet mode for self-study (Legendre, Jacobi, CRT, SqrtMod, Factor, Totient, DLog, RSA, DH)
+- Symlink-friendly (foxmath-rsa, foxmath-dh, foxmath-legendre, foxmath-jacobi,
+  foxmath-solovay, foxmath-repl, foxmath-sqrtmod, foxmath-isprime,
+  foxmath-factor, foxmath-totient, foxmath-order, foxmath-dlog,
+  foxmath-mobius, foxmath-sigma, foxmath-tau, foxmath-egcd,
+  foxmath-modinv, foxmath-pi, foxmath-ecadd, foxmath-ecmul,
+  foxmath-crt, foxmath-cf, foxmath-challenge)
 - JSON output mode
 
 ## Installation
@@ -57,10 +59,80 @@ Check which version you have installed:
 foxmath --version
 ```
 ```
-foxmath 0.13.1
+foxmath 0.14.0
 ```
 
 ## Usage Examples
+
+```bash
+# Toy RSA: keygen, encrypt, decrypt (with CRT), and Pollard's rho crack
+foxmath rsa keygen --bits 32 --seed 42
+```
+```
+RSA 32-bit Keypair:
+  Modulus   (n) = 2369625997
+  Public  e     = 65537
+  Private d     = 18514673
+  Prime p       = 48817
+  Prime q       = 48541
+  Euler phi     = 2369528640
+  Carmichael λ  = 197460720
+```
+
+```bash
+foxmath rsa encrypt 42 17 3233
+```
+```
+Ciphertext c = 2557
+```
+
+```bash
+foxmath rsa decrypt 2557 413 3233 --p 61 --q 53
+```
+```
+Decrypted message m = 42 (CRT accelerated)
+```
+
+```bash
+# Factor modulus n via Pollard's rho, recover d, and decrypt ciphertext
+foxmath rsa crack 3233 17 2790
+```
+```
+Factored n = 3233:
+  p = 61
+  q = 53
+  Euler phi    = 3120
+  Carmichael λ = 780
+  Recovered d  = 413
+  Decrypted m  = 65
+```
+
+```bash
+# Diffie-Hellman: keygen, shared secret derivation, and BSGS discrete log attack
+foxmath dh keygen 23 5 --priv 4
+```
+```
+Diffie-Hellman Keypair (p=23, g=5):
+  Private key (a) = 4
+  Public key  (A) = 4
+```
+
+```bash
+foxmath dh derive 4 8 23
+```
+```
+Shared secret S = 2
+```
+
+```bash
+# Recover Alice's private key a from public key A = 4 via BSGS
+foxmath dh crack 5 4 23
+```
+```
+Discrete logarithm solved via BSGS:
+  Recovered private key a = 4
+  Verification: 5^4 ≡ 4 (mod 23)
+```
 
 ```bash
 foxmath factor 360
@@ -184,14 +256,17 @@ tau(12) = 6
 foxmath repl
 ```
 ```
-FoxMath 0.13.1 Interactive REPL 🦊
+FoxMath 0.14.0 Interactive REPL 🦊
 All math functions loaded. Type exit() or Ctrl-Z + Enter to quit.
+>>> keys = rsa_keygen(bits=32, seed=42)
+>>> rsa_encrypt(42, keys["e"], keys["n"])
+2557
+>>> dh_derive(4, 8, 23)
+2
 >>> jacobi_symbol(10, 13)
 1
 >>> solovay_strassen(104729)
 True
->>> dlog(2, 5, 13)
-9
 ```
 
 ```bash
@@ -271,7 +346,7 @@ foxmath challenge --topic ecdlp --count 1 --seed 9 --reveal
 ```
 
 Drop `--reveal` to answer interactively instead, with scoring at the end.
-`--topic` accepts `legendre`, `jacobi`, `crt`, `ecdlp`, `sqrtmod`, `factor`, `totient`, `dlog`, or `mixed` (default).
+`--topic` accepts `rsa`, `dh`, `legendre`, `jacobi`, `crt`, `ecdlp`, `sqrtmod`, `factor`, `totient`, `dlog`, or `mixed` (default).
 
 ```bash
 # JSON output
