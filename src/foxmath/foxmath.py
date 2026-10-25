@@ -8,6 +8,7 @@ import argparse
 import sys
 import json
 import random
+import time
 from collections import Counter
 from decimal import Decimal, getcontext
 from importlib import metadata
@@ -151,6 +152,137 @@ def format_factorization(factors: list) -> str:
         else:
             parts.append(f"{p}^{power}")
     return " * ".join(parts)
+
+def to_sci(n: int, prec: int = 30) -> str:
+    """Convert integer n to scientific notation string if it exceeds the given precision.
+
+    Example: to_sci(123456789, prec=6) -> "1.234568e+8"
+    """
+    if not isinstance(n, int):
+        raise TypeError("n must be an integer")
+    if prec < 1:
+        raise ValueError("prec must be a positive integer >= 1")
+
+    s = str(n)
+    if len(s) <= prec:
+        return s
+
+    neg = n < 0
+    if neg:
+        s = str(abs(n))
+
+    exp = len(s) - 1
+    sig_len = 1 + prec  # 1 digit before decimal + `prec` digits after
+
+    extended = s if len(s) > sig_len else s + ("0" * (sig_len + 1 - len(s)))
+    sig = extended[:sig_len]
+    next_digit = extended[sig_len] if len(extended) > sig_len else "0"
+
+    mant_int = int(sig)
+
+    # Round if needed
+    if next_digit >= "5":
+        mant_int += 1
+        if mant_int >= 10 ** sig_len:
+            mant_int //= 10
+            exp += 1
+
+    mant_str = str(mant_int).rjust(sig_len, "0")
+    mantissa = mant_str[0] + "." + mant_str[1:]
+    exp_str = f"{exp:+d}"
+    sign = "-" if neg else ""
+    return f"{sign}{mantissa}e{exp_str}"
+
+def _is_square(d: int) -> bool:
+    """Exact integer square test."""
+    if d < 0:
+        return False
+    # Modulo 16 quadratic residues: 0, 1, 4, 9
+    if not (0x0213 & (1 << (d & 15))):
+        return False
+    s = isqrt(d)
+    return s * s == d
+
+def fermat_factor(
+    n: int,
+    quiet: bool = True,
+    prec: int = 30,
+    print_interval: int = 1000000,
+    start_iter: int = 0,
+) -> tuple:
+    """Factor an integer n using Fermat's difference of squares method (n = x^2 - y^2 = (x - y)(x + y)).
+
+    Returns (p, q, iterations) where p * q == n and p <= q, or None if no factor was found.
+    """
+    if isinstance(n, str):
+        data = n.strip()
+        if data.startswith(("0x", "0X")):
+            n = int(data, 16)
+        else:
+            n = int(data)
+
+    if not isinstance(n, int):
+        raise TypeError("n must be an integer")
+    if n < 1:
+        raise ValueError("n must be a positive integer >= 1")
+    if start_iter < 0:
+        raise ValueError("starting iteration (start_iter) must be non-negative")
+    if prec < 1:
+        raise ValueError("prec must be a positive integer >= 1")
+    if print_interval < 1:
+        raise ValueError("print_interval must be a positive integer >= 1")
+
+    if n == 1:
+        return (1, 1, 0)
+
+    y0 = isqrt(n)
+    if y0 * y0 < n:
+        y0 += 1
+
+    y0 += start_iter
+    D = y0 * y0 - n
+    k = start_iter
+
+    while y0 + (k - start_iter) < n:
+        if _is_square(D):
+            x = isqrt(D)
+            y = y0 + (k - start_iter)
+            p = y - x
+            q = y + x
+            if p * q == n:
+                return (p, q, k)
+
+        if not quiet and k % print_interval == 0 and k > 0:
+            y = y0 + (k - start_iter)
+            approx_x = isqrt(D)
+            approx_p = y - approx_x
+            approx_q = y + approx_x
+            print(
+                f"Iteration: {k} p ≈ {to_sci(approx_p, prec)} q ≈ {to_sci(approx_q, prec)}",
+                end="\r",
+                flush=True,
+            )
+
+        k += 1
+        D += 2 * y0 + 2 * (k - start_iter) - 1
+
+    return None
+
+def predict_factor(
+    n: int,
+    quiet: bool = False,
+    prec: int = 30,
+    print_interval: int = 1000000,
+    start_iter: int = 0,
+) -> tuple:
+    """Alias for fermat_factor matching diffsquare-py naming and defaults."""
+    return fermat_factor(
+        n,
+        quiet=quiet,
+        prec=prec,
+        print_interval=print_interval,
+        start_iter=start_iter,
+    )
 
 def euler_phi(n: int) -> int:
     """Euler's totient function phi(n). Counts positive integers <= n coprime to n."""
@@ -311,6 +443,92 @@ def sigma(n: int, k: int = 1) -> int:
         term = (pk ** (power + 1) - 1) // (pk - 1)
         total *= term
     return total
+
+def is_perfect(n: int) -> bool:
+    """Return True if n is a perfect number (sum of proper divisors equals n)."""
+    if not isinstance(n, int):
+        raise TypeError("n must be an integer")
+    if n <= 1:
+        return False
+    return sigma(n) == 2 * n
+
+def mersenne_number(p: int) -> int:
+    """Return the Mersenne number M_p = 2^p - 1 for exponent p >= 1."""
+    if not isinstance(p, int):
+        raise TypeError("Exponent p must be an integer")
+    if p < 1:
+        raise ValueError("Exponent p must be an integer >= 1")
+    return (1 << p) - 1
+
+def lucas_lehmer(p: int) -> bool:
+    """Lucas-Lehmer deterministic primality test for Mersenne number M_p = 2^p - 1.
+
+    Returns True if M_p is prime, False otherwise.
+    Raises ValueError if p < 2.
+    """
+    if not isinstance(p, int):
+        raise TypeError("Exponent p must be an integer")
+    if p < 2:
+        raise ValueError("Exponent p must be an integer >= 2")
+    if p == 2:
+        return True
+    if p % 2 == 0 or not is_prime(p):
+        return False
+
+    mp = (1 << p) - 1
+    s = 4
+    for _ in range(p - 2):
+        s = (s * s - 2) % mp
+    return s == 0
+
+def mersenne(p: int) -> dict:
+    """Inspect Mersenne number M_p = 2^p - 1 and verify its primality."""
+    if not isinstance(p, int):
+        raise TypeError("Exponent p must be an integer")
+    if p < 2:
+        raise ValueError("Exponent p must be an integer >= 2")
+
+    mp = mersenne_number(p)
+    p_prime = is_prime(p)
+    prime = lucas_lehmer(p) if p_prime else False
+
+    info = {
+        "p": p,
+        "mp": mp,
+        "p_is_prime": p_prime,
+        "is_prime": prime,
+        "bits": p,
+        "digits": len(str(mp)),
+    }
+    if prime:
+        info["perfect_number"] = (1 << (p - 1)) * mp
+    return info
+
+def mersenne_primes(limit_p: int = 127) -> list:
+    """Return a list of prime exponents p <= limit_p such that 2^p - 1 is prime."""
+    if not isinstance(limit_p, int):
+        raise TypeError("limit_p must be an integer")
+    if limit_p < 2:
+        return []
+
+    primes = []
+    for p in range(2, limit_p + 1):
+        if is_prime(p) and lucas_lehmer(p):
+            primes.append(p)
+    return primes
+
+def perfect_number(p: int) -> int:
+    """Generate the even perfect number 2^(p-1) * (2^p - 1) for Mersenne prime exponent p.
+
+    Raises ValueError if 2^p - 1 is not prime.
+    """
+    if not isinstance(p, int):
+        raise TypeError("Exponent p must be an integer")
+    if p < 2:
+        raise ValueError("Exponent p must be an integer >= 2")
+    if not lucas_lehmer(p):
+        raise ValueError(f"Mersenne number 2^{p} - 1 is not prime; no perfect number corresponds to p = {p}")
+    return (1 << (p - 1)) * ((1 << p) - 1)
 
 def _require_odd_prime(p: int) -> None:
     """Enforce the contract the Legendre symbol and Tonelli-Shanks rely on.
@@ -749,29 +967,55 @@ def rsa_decrypt(c: int, d: int, n: int, p: int = None, q: int = None) -> int:
 
     return pow(c, d, n)
 
-def rsa_crack(n: int, e: int, c: int = None) -> dict:
-    """Recover RSA private key (d) by factoring n via Pollard's rho, and decrypt c if given."""
+def rsa_crack(n: int, e: int, c: int = None, method: str = "auto") -> dict:
+    """Recover RSA private key (d) by factoring n, and decrypt c if given.
+
+    method: 'auto' (tries Fermat up to 10k steps, then Pollard's rho),
+            'fermat' (uses Fermat's difference of squares), or
+            'pollard' (uses Pollard's rho & trial division).
+    """
     if not isinstance(n, int) or not isinstance(e, int):
         raise TypeError("n and e must be integers")
     if n <= 1:
         raise ValueError("Modulus n must be greater than 1")
     if e < 1:
         raise ValueError("Exponent e must be >= 1")
+    if method not in ("auto", "pollard", "fermat"):
+        raise ValueError(f"Unknown factorization method '{method}'; choose 'auto', 'pollard', or 'fermat'")
     if c is not None:
         if not isinstance(c, int):
             raise TypeError("c must be an integer")
         if c < 0 or c >= n:
             raise ValueError(f"Ciphertext c must satisfy 0 <= c < n (got c={c}, n={n})")
 
-    factors = factorize(n)
-    primes = []
-    for prime, power in factors:
-        primes.extend([prime] * power)
+    p = q = None
+    used_method = method
 
-    if len(primes) != 2:
-        raise ValueError(f"Modulus {n} must be a product of two primes (found {len(primes)} factors)")
+    if method in ("auto", "fermat"):
+        max_f_steps = 10000 if method == "auto" else 1000000
+        if n % 2 != 0:
+            fermat_res = fermat_factor(n, quiet=True)
+            if fermat_res is not None and fermat_res[2] <= max_f_steps:
+                fp, fq, _ = fermat_res
+                if fp > 1 and fq > 1 and is_prime(fp) and is_prime(fq):
+                    p, q = fp, fq
+                    used_method = "fermat"
 
-    p, q = primes[0], primes[1]
+        if method == "fermat" and p is None:
+            raise ValueError(f"Fermat factorization failed to factor modulus {n}")
+
+    if p is None:
+        factors = factorize(n)
+        primes = []
+        for prime, power in factors:
+            primes.extend([prime] * power)
+
+        if len(primes) != 2:
+            raise ValueError(f"Modulus {n} must be a product of two primes (found {len(primes)} factors)")
+
+        p, q = primes[0], primes[1]
+        used_method = "pollard"
+
     if p < q:
         p, q = q, p
 
@@ -790,6 +1034,7 @@ def rsa_crack(n: int, e: int, c: int = None) -> dict:
         "phi": phi,
         "lambda": lam,
         "d": d,
+        "method": used_method,
     }
     if c is not None:
         res["c"] = c
@@ -997,6 +1242,45 @@ def _generate_dh_problem(rng: random.Random) -> dict:
             "answer": s,
         }
 
+_MERSENNE_CHALLENGE_EXPONENTS = [2, 3, 4, 5, 6, 7, 11, 13, 17, 19, 23]
+
+def _generate_mersenne_problem(rng: random.Random) -> dict:
+    p = rng.choice(_MERSENNE_CHALLENGE_EXPONENTS)
+    ans = 1 if (p >= 2 and is_prime(p) and lucas_lehmer(p)) else 0
+    return {
+        "topic": "mersenne",
+        "question": f"Is the Mersenne number M_{p} = 2^{p} - 1 prime? (Enter 1 for prime, 0 for composite)",
+        "answer": ans,
+    }
+
+_PERFECT_CHALLENGE_NUMBERS = [
+    (6, 1),
+    (12, 0),
+    (28, 1),
+    (36, 0),
+    (496, 1),
+    (512, 0),
+    (8128, 1),
+    (8192, 0),
+]
+
+def _generate_perfect_problem(rng: random.Random) -> dict:
+    if rng.choice([True, False]):
+        n, ans = rng.choice(_PERFECT_CHALLENGE_NUMBERS)
+        return {
+            "topic": "perfect",
+            "question": f"Is n = {n} a perfect number? (Enter 1 for yes, 0 for no)",
+            "answer": ans,
+        }
+    else:
+        p = rng.choice([2, 3, 5, 7])
+        ans = perfect_number(p)
+        return {
+            "topic": "perfect",
+            "question": f"What is the even perfect number corresponding to Mersenne prime M_{p} = 2^{p} - 1 for p = {p}?",
+            "answer": ans,
+        }
+
 _TOPIC_GENERATORS = {
     "legendre": _generate_legendre_problem,
     "crt": _generate_crt_problem,
@@ -1008,6 +1292,8 @@ _TOPIC_GENERATORS = {
     "jacobi": _generate_jacobi_problem,
     "rsa": _generate_rsa_problem,
     "dh": _generate_dh_problem,
+    "mersenne": _generate_mersenne_problem,
+    "perfect": _generate_perfect_problem,
 }
 
 def generate_problem(topic: str, rng: random.Random) -> dict:
@@ -1030,7 +1316,8 @@ def cmd_repl() -> None:
     banner = (
         f"FoxMath {_package_version()} Interactive REPL 🦊\n"
         "All math functions loaded. Type exit() or Ctrl-Z + Enter to quit.\n"
-        "Functions: rsa_keygen, rsa_encrypt, rsa_decrypt, rsa_crack,\n"
+        "Functions: lucas_lehmer, mersenne, perfect_number, is_perfect,\n"
+        "           rsa_keygen, rsa_encrypt, rsa_decrypt, rsa_crack,\n"
         "           dh_keygen, dh_derive, dh_crack, jacobi_symbol, solovay_strassen,\n"
         "           discrete_log (dlog), mobius, sigma, tau, factorize, is_prime, ..."
     )
@@ -1041,6 +1328,9 @@ def cmd_repl() -> None:
         "is_prime": is_prime,
         "factorize": factorize,
         "format_factorization": format_factorization,
+        "fermat_factor": fermat_factor,
+        "predict_factor": predict_factor,
+        "to_sci": to_sci,
         "legendre_symbol": legendre_symbol,
         "jacobi_symbol": jacobi_symbol,
         "solovay_strassen": solovay_strassen,
@@ -1054,6 +1344,12 @@ def cmd_repl() -> None:
         "mobius": mobius,
         "tau": tau,
         "sigma": sigma,
+        "is_perfect": is_perfect,
+        "mersenne_number": mersenne_number,
+        "lucas_lehmer": lucas_lehmer,
+        "mersenne": mersenne,
+        "mersenne_primes": mersenne_primes,
+        "perfect_number": perfect_number,
         "extended_gcd": extended_gcd,
         "egcd": extended_gcd,
         "mod_inverse": mod_inverse,
@@ -1078,6 +1374,27 @@ def cmd_repl() -> None:
     code.interact(banner="", local=namespace, exitmsg="")
 
 # ------------------- CLI -------------------
+
+def _has_stdin_data() -> bool:
+    """Return True if stdin has data waiting to be read without blocking."""
+    if sys.stdin.isatty():
+        return False
+    if sys.platform == "win32":
+        try:
+            import msvcrt
+            import ctypes
+            handle = msvcrt.get_osfhandle(sys.stdin.fileno())
+            avail = ctypes.c_ulong(0)
+            if ctypes.windll.kernel32.PeekNamedPipe(handle, None, 0, None, ctypes.byref(avail), None):
+                return avail.value > 0
+        except Exception:
+            pass
+        return False
+    try:
+        import select
+        return bool(select.select([sys.stdin], [], [], 0.0)[0])
+    except Exception:
+        return False
 
 def get_command():
     """Support symlinks: foxmath-legendre, foxmath-pi, etc."""
@@ -1135,6 +1452,15 @@ def main():
 
     factor_cmd = subparsers.add_parser("factor", help="Prime factorization into prime powers")
     factor_cmd.add_argument("n", type=int, help="Positive integer to factor (n >= 1)")
+
+    # Fermat difference of squares
+    fermat_cmd = subparsers.add_parser("fermat", help="Fermat's difference of squares factorization")
+    fermat_cmd.add_argument("n", type=str, nargs="?", default=None, help="Modulus to factor (decimal or hex with 0x)")
+    fermat_cmd.add_argument("-n", "--mod", dest="mod", type=str, default=None, help="Modulus to factor (decimal or hex with 0x)")
+    fermat_cmd.add_argument("-q", "--quiet", action="store_true", help="Suppress progress output")
+    fermat_cmd.add_argument("-p", "--prec", type=int, default=30, help="Digits to show for approximate factors (default: 30)")
+    fermat_cmd.add_argument("-i", "--interval", type=int, default=1000000, help="Print interval for progress (default: 1e6)")
+    fermat_cmd.add_argument("-s", "--start", type=int, default=0, help="Starting iteration offset (default: 0)")
 
     # Pi
     pi_cmd = subparsers.add_parser("pi", help="Euler/Hermann Machin-like π approximation")
@@ -1241,11 +1567,12 @@ def main():
     rsa_dec_cmd.add_argument("--p", type=int, default=None, help="Prime factor p for CRT acceleration")
     rsa_dec_cmd.add_argument("--q", type=int, default=None, help="Prime factor q for CRT acceleration")
 
-    rsa_crack_cmd = rsa_sub.add_parser("crack", help="Factor modulus n via Pollard's rho, recover d, and decrypt c if given")
+    rsa_crack_cmd = rsa_sub.add_parser("crack", help="Factor modulus n, recover d, and decrypt c if given")
     rsa_crack_cmd.add_argument("n", type=int, help="Modulus n")
     rsa_crack_cmd.add_argument("e", type=int, help="Public exponent e")
     rsa_crack_cmd.add_argument("c", type=int, nargs="?", default=None, help="Optional ciphertext c to decrypt")
     rsa_crack_cmd.add_argument("--c", dest="opt_c", type=int, default=None, help="Optional ciphertext c to decrypt")
+    rsa_crack_cmd.add_argument("--method", choices=["auto", "pollard", "fermat"], default="auto", help="Factorization attack method (default: auto)")
 
     # Diffie-Hellman
     dh_parser = subparsers.add_parser("dh", help="Diffie-Hellman key exchange (keygen, derive, crack)")
@@ -1267,12 +1594,23 @@ def main():
     dh_crack_cmd.add_argument("public_key", type=int, help="Public key A")
     dh_crack_cmd.add_argument("p", type=int, help="Prime modulus p")
 
+    # Mersenne numbers & Lucas–Lehmer primality test
+    mersenne_cmd = subparsers.add_parser("mersenne", help="Mersenne number M_p = 2^p - 1 and Lucas–Lehmer test")
+    mersenne_cmd.add_argument("p", type=int, nargs="?", default=None, help="Mersenne exponent p >= 2")
+    mersenne_cmd.add_argument("--list", action="store_true", help="List Mersenne primes up to --limit")
+    mersenne_cmd.add_argument("--limit", type=int, default=127, help="Maximum exponent for --list (default: 127)")
+
+    # Perfect numbers
+    perfect_cmd = subparsers.add_parser("perfect", help="Perfect number generator and test (Euclid–Euler theorem)")
+    perfect_cmd.add_argument("n", type=int, help="Integer n to test, or exponent p if --from-p is set")
+    perfect_cmd.add_argument("-p", "--from-p", action="store_true", help="Generate even perfect number from Mersenne exponent p")
+
     # Interactive REPL
     subparsers.add_parser("repl", help="Interactive FoxMath REPL")
 
     # Challenge / quiz mode
-    challenge = subparsers.add_parser("challenge", help="Practice problems (Legendre, Jacobi, CRT, SqrtMod, Factor, Totient, DLog, RSA, DH)")
-    challenge.add_argument("--topic", choices=["legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "dlog", "jacobi", "rsa", "dh", "mixed"], default="mixed")
+    challenge = subparsers.add_parser("challenge", help="Practice problems (Legendre, Jacobi, CRT, SqrtMod, Factor, Totient, DLog, RSA, DH, Mersenne, Perfect)")
+    challenge.add_argument("--topic", choices=["legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "dlog", "jacobi", "rsa", "dh", "mersenne", "perfect", "mixed"], default="mixed")
     challenge.add_argument("--count", type=int, default=5, help="Number of problems")
     challenge.add_argument("--seed", type=int, help="Random seed for reproducible problem sets")
     challenge.add_argument("--reveal", action="store_true",
@@ -1329,6 +1667,69 @@ def main():
                     print("1 has no prime factors")
                 else:
                     print(f"{args.n} = {expr}")
+
+        elif cmd == "fermat" or args.command == "fermat":
+            raw_input = args.n if args.n is not None else args.mod
+            if raw_input is None:
+                if _has_stdin_data():
+                    raw_input = sys.stdin.read().strip()
+                else:
+                    raise ValueError("Modulus to factor must be provided via argument (-n/positional) or stdin")
+
+            raw_input = raw_input.strip()
+            if raw_input == "-":
+                raw_input = sys.stdin.read().strip()
+
+            if not raw_input:
+                raise ValueError("No modulus provided to factor")
+
+            if raw_input.startswith(("0x", "0X")):
+                target_n = int(raw_input, 16)
+            else:
+                target_n = int(raw_input)
+
+            if args.start < 0:
+                raise ValueError("starting iteration (--start) must be non-negative")
+
+            start_time = time.perf_counter()
+            res = fermat_factor(
+                target_n,
+                quiet=args.quiet,
+                prec=args.prec,
+                print_interval=args.interval,
+                start_iter=args.start,
+            )
+            elapsed = time.perf_counter() - start_time
+
+            if res is None:
+                if json_output:
+                    result.update({
+                        "command": "fermat",
+                        "n": target_n,
+                        "success": False,
+                        "error": f"Failed to factor {target_n}",
+                    })
+                    print(json.dumps(result, indent=2))
+                else:
+                    print(f"❌ Failed to factor {target_n}.")
+                sys.exit(1)
+
+            p, q, k = res
+            result.update({
+                "command": "fermat",
+                "n": target_n,
+                "p": p,
+                "q": q,
+                "iterations": k,
+                "elapsed_seconds": round(elapsed, 6),
+                "success": True,
+            })
+            if not json_output:
+                print(f"\n✅ Factors of {target_n}:")
+                print(f"p = {p}")
+                print(f"q = {q}")
+                print(f"Iterations = {k}")
+                print(f"⏱️  Execution time: {elapsed:.6f} seconds")
 
         elif cmd == "pi" or args.command == "pi":
             approx = euler_hermann_pi_approx(args.terms)
@@ -1554,12 +1955,13 @@ def main():
 
             elif args.rsa_action == "crack":
                 c_val = args.c if args.c is not None else args.opt_c
-                cracked = rsa_crack(args.n, args.e, c=c_val)
+                cracked = rsa_crack(args.n, args.e, c=c_val, method=args.method)
                 result.update({"command": "rsa", "action": "crack", **cracked})
                 if not json_output:
                     print(f"Factored n = {args.n}:")
                     print(f"  p = {cracked['p']}")
                     print(f"  q = {cracked['q']}")
+                    print(f"  Method       = {cracked['method']}")
                     print(f"  Euler phi    = {cracked['phi']}")
                     print(f"  Carmichael λ = {cracked['lambda']}")
                     print(f"  Recovered d  = {cracked['d']}")
@@ -1602,6 +2004,64 @@ def main():
                     print("Discrete logarithm solved via BSGS:")
                     print(f"  Recovered private key a = {priv}")
                     print(f"  Verification: {args.g}^{priv} ≡ {args.public_key} (mod {args.p})")
+
+        elif cmd == "mersenne" or args.command == "mersenne":
+            if args.list:
+                m_primes = mersenne_primes(args.limit)
+                result.update({
+                    "command": "mersenne",
+                    "action": "list",
+                    "limit": args.limit,
+                    "exponents": m_primes,
+                    "count": len(m_primes),
+                })
+                if not json_output:
+                    print(f"Mersenne prime exponents p <= {args.limit}:")
+                    print(f"  {', '.join(str(p) for p in m_primes)} ({len(m_primes)} primes)")
+            else:
+                if args.p is None:
+                    raise ValueError("Specify exponent p or use --list")
+                m_info = mersenne(args.p)
+                result.update({"command": "mersenne", **m_info})
+                if not json_output:
+                    mp_str = str(m_info["mp"])
+                    disp = mp_str if len(mp_str) <= 40 else f"{mp_str[:15]}...{mp_str[-15:]} ({m_info['digits']} digits)"
+                    print(f"M_{args.p} = 2^{args.p} - 1 = {disp}")
+                    if m_info["is_prime"]:
+                        print("  ✓ Prime (Lucas-Lehmer test passed)")
+                        print(f"  Corresponding perfect number: {m_info['perfect_number']}")
+                    else:
+                        if not m_info["p_is_prime"]:
+                            print(f"  ✗ Composite (exponent {args.p} is composite)")
+                        else:
+                            print("  ✗ Composite (Lucas-Lehmer test failed)")
+
+        elif cmd == "perfect" or args.command == "perfect":
+            if args.from_p:
+                pn = perfect_number(args.n)
+                result.update({
+                    "command": "perfect",
+                    "action": "generate",
+                    "p": args.n,
+                    "perfect_number": pn,
+                    "mersenne_prime": (1 << args.n) - 1,
+                })
+                if not json_output:
+                    print(f"Even perfect number for p = {args.n}:")
+                    print(f"  2^{args.n - 1} * (2^{args.n} - 1) = {pn}")
+            else:
+                perf = is_perfect(args.n)
+                result.update({
+                    "command": "perfect",
+                    "action": "test",
+                    "n": args.n,
+                    "is_perfect": perf,
+                })
+                if not json_output:
+                    if perf:
+                        print(f"{args.n} is a perfect number (sum of proper divisors equals {args.n})")
+                    else:
+                        print(f"{args.n} is not a perfect number")
 
         elif cmd == "repl" or args.command == "repl":
             cmd_repl()

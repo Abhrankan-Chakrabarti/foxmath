@@ -1,6 +1,6 @@
 # FoxMath 🦊
 
-**Minimalist CLI & library for number theory and cryptography: RSA & Diffie-Hellman cryptosystems, BSGS discrete log solver, arithmetic functions (μ, σ, τ), Jacobi symbol & Solovay–Strassen test, Pollard's ρ factorization, totient & Carmichael functions, Tonelli-Shanks roots, interactive REPL, Weierstrass elliptic curves, Chinese Remainder Theorem, and continued fractions.**
+**Minimalist CLI & library for number theory and cryptography: Lucas-Lehmer Mersenne primality test & perfect numbers, Fermat's difference of squares, RSA & Diffie-Hellman cryptosystems, BSGS discrete log solver, arithmetic functions (μ, σ, τ), Jacobi symbol & Solovay–Strassen test, Pollard's ρ factorization, totient & Carmichael functions, Tonelli-Shanks roots, interactive REPL, Weierstrass elliptic curves, Chinese Remainder Theorem, and continued fractions.**
 
 **More about me / other projects:** [abhrankan.duckdns.org](https://abhrankan.duckdns.org)
 
@@ -9,7 +9,10 @@ One binary. Clean output. Zero footguns. Educational by design.
 Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
 
 ## Features
-- Textbook RSA cryptosystem: key generation, encryption, CRT-accelerated decryption, and Pollard's ρ factoring attack (rsa)
+- Lucas–Lehmer deterministic primality test for Mersenne numbers M_p = 2^p - 1 and prime exponent search (mersenne)
+- Euclid–Euler perfect number generator and test: 2^(p-1) * (2^p - 1) (perfect)
+- Fermat's difference of squares factorization: fast factoring when factors are close, with configurable precision, interval, and iteration offset (fermat)
+- Textbook RSA cryptosystem: key generation, encryption, CRT-accelerated decryption, and multi-method modulus crack (Pollard's ρ & Fermat's attack) (rsa)
 - Diffie-Hellman key exchange: key generation, shared secret derivation, and BSGS discrete log attack (dh)
 - Legendre symbol
 - Jacobi symbol (jacobi)
@@ -32,13 +35,14 @@ Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
 - Chinese Remainder Theorem solver (handles non-coprime moduli)
 - Continued fraction expansion and convergents
 - Challenge/quiz mode — practice problems with scoring, or a
-  worksheet mode for self-study (Legendre, Jacobi, CRT, SqrtMod, Factor, Totient, DLog, RSA, DH)
-- Symlink-friendly (foxmath-rsa, foxmath-dh, foxmath-legendre, foxmath-jacobi,
-  foxmath-solovay, foxmath-repl, foxmath-sqrtmod, foxmath-isprime,
-  foxmath-factor, foxmath-totient, foxmath-order, foxmath-dlog,
-  foxmath-mobius, foxmath-sigma, foxmath-tau, foxmath-egcd,
-  foxmath-modinv, foxmath-pi, foxmath-ecadd, foxmath-ecmul,
-  foxmath-crt, foxmath-cf, foxmath-challenge)
+  worksheet mode for self-study (Legendre, Jacobi, CRT, SqrtMod, Factor, Totient, DLog, RSA, DH, Mersenne, Perfect)
+- Symlink-friendly (foxmath-mersenne, foxmath-perfect, foxmath-fermat, foxmath-rsa, foxmath-dh,
+  foxmath-legendre, foxmath-jacobi, foxmath-solovay, foxmath-repl,
+  foxmath-sqrtmod, foxmath-isprime, foxmath-factor, foxmath-totient,
+  foxmath-order, foxmath-dlog, foxmath-mobius, foxmath-sigma,
+  foxmath-tau, foxmath-egcd, foxmath-modinv, foxmath-pi,
+  foxmath-ecadd, foxmath-ecmul, foxmath-crt, foxmath-cf,
+  foxmath-challenge)
 - JSON output mode
 
 ## Installation
@@ -59,7 +63,7 @@ Check which version you have installed:
 foxmath --version
 ```
 ```
-foxmath 0.14.0
+foxmath 0.15.0
 ```
 
 ## Usage Examples
@@ -94,13 +98,14 @@ Decrypted message m = 42 (CRT accelerated)
 ```
 
 ```bash
-# Factor modulus n via Pollard's rho, recover d, and decrypt ciphertext
+# Factor modulus n (auto-picks Fermat or Pollard's rho), recover d, and decrypt ciphertext
 foxmath rsa crack 3233 17 2790
 ```
 ```
 Factored n = 3233:
   p = 61
   q = 53
+  Method       = fermat
   Euler phi    = 3120
   Carmichael λ = 780
   Recovered d  = 413
@@ -139,6 +144,72 @@ foxmath factor 360
 ```
 ```
 360 = 2^3 * 3^2 * 5
+```
+
+```bash
+# Fermat's difference of squares factorization (fast when factors are close)
+foxmath fermat 5959
+```
+```
+✅ Factors of 5959:
+p = 59
+q = 101
+Iterations = 2
+⏱️  Execution time: 0.000030 seconds
+```
+
+```bash
+# Factor via stdin or hex modulus
+echo 5959 | foxmath fermat
+foxmath fermat -n 0x1747 --quiet
+```
+```
+✅ Factors of 5959:
+p = 59
+q = 101
+Iterations = 2
+⏱️  Execution time: 0.000028 seconds
+```
+
+```bash
+# Custom precision (-p), progress interval (-i), or iteration offset (-s)
+foxmath fermat -n 5959 -p 6 -i 100000 -s 1
+```
+
+```bash
+# Lucas–Lehmer deterministic primality test for Mersenne numbers (M_p = 2^p - 1)
+foxmath mersenne 13
+```
+```
+M_13 = 2^13 - 1 = 8191
+  ✓ Prime (Lucas-Lehmer test passed)
+  Corresponding perfect number: 33550336
+```
+
+```bash
+# List all Mersenne prime exponents up to limit
+foxmath mersenne --list --limit 31
+```
+```
+Mersenne prime exponents p <= 31:
+  2, 3, 5, 7, 13, 17, 19, 31 (8 primes)
+```
+
+```bash
+# Euclid–Euler perfect numbers: 2^(p-1) * (2^p - 1)
+foxmath perfect 33550336
+```
+```
+33550336 is a perfect number (sum of proper divisors equals 33550336)
+```
+
+```bash
+# Generate perfect number from prime exponent p
+foxmath perfect 13 --from-p
+```
+```
+Even perfect number for p = 13:
+  2^12 * (2^13 - 1) = 33550336
 ```
 
 ```bash
@@ -256,17 +327,19 @@ tau(12) = 6
 foxmath repl
 ```
 ```
-FoxMath 0.14.0 Interactive REPL 🦊
+FoxMath 0.15.0 Interactive REPL 🦊
 All math functions loaded. Type exit() or Ctrl-Z + Enter to quit.
+>>> lucas_lehmer(13)
+True
+>>> perfect_number(13)
+33550336
+>>> is_perfect(33550336)
+True
+>>> mersenne_primes(31)
+[2, 3, 5, 7, 13, 17, 19, 31]
 >>> keys = rsa_keygen(bits=32, seed=42)
 >>> rsa_encrypt(42, keys["e"], keys["n"])
 2557
->>> dh_derive(4, 8, 23)
-2
->>> jacobi_symbol(10, 13)
-1
->>> solovay_strassen(104729)
-True
 ```
 
 ```bash
@@ -346,7 +419,7 @@ foxmath challenge --topic ecdlp --count 1 --seed 9 --reveal
 ```
 
 Drop `--reveal` to answer interactively instead, with scoring at the end.
-`--topic` accepts `rsa`, `dh`, `legendre`, `jacobi`, `crt`, `ecdlp`, `sqrtmod`, `factor`, `totient`, `dlog`, or `mixed` (default).
+`--topic` accepts `rsa`, `dh`, `mersenne`, `perfect`, `legendre`, `jacobi`, `crt`, `ecdlp`, `sqrtmod`, `factor`, `totient`, `dlog`, or `mixed` (default).
 
 ```bash
 # JSON output

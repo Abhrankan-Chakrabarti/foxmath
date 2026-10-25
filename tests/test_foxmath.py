@@ -21,6 +21,7 @@ from foxmath.foxmath import (
     euler_phi, carmichael_lambda, multiplicative_order, is_primitive_root,
     discrete_log, mobius, tau, sigma,
     dlog, egcd, modinv, crt,
+    fermat_factor, predict_factor, to_sci,
 )
 import random
 
@@ -716,10 +717,25 @@ class TestChallengeGenerators(unittest.TestCase):
             self.assertIsInstance(prob["answer"], int)
             self.assertIn("In Diffie-Hellman with p =", prob["question"])
 
+    def test_mersenne_problem_answer_is_correct(self):
+        rng = random.Random(0)
+        for _ in range(50):
+            prob = generate_problem("mersenne", rng)
+            self.assertEqual(prob["topic"], "mersenne")
+            self.assertIn(prob["answer"], (0, 1))
+            self.assertIn("Is the Mersenne number M_", prob["question"])
+
+    def test_perfect_problem_answer_is_correct(self):
+        rng = random.Random(0)
+        for _ in range(50):
+            prob = generate_problem("perfect", rng)
+            self.assertEqual(prob["topic"], "perfect")
+            self.assertIsInstance(prob["answer"], int)
+
     def test_mixed_topic_produces_all_kinds(self):
         rng = random.Random(1)
-        topics = {generate_problem("mixed", rng)["topic"] for _ in range(250)}
-        self.assertEqual(topics, {"legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "dlog", "jacobi", "rsa", "dh"})
+        topics = {generate_problem("mixed", rng)["topic"] for _ in range(350)}
+        self.assertEqual(topics, {"legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "dlog", "jacobi", "rsa", "dh", "mersenne", "perfect"})
 
     def test_reproducible_with_same_seed(self):
         p1 = generate_problem("legendre", random.Random(99))
@@ -858,12 +874,104 @@ class TestSolovayStrassen(unittest.TestCase):
             solovay_strassen(17, rounds=-5)
 
 
+class TestToSci(unittest.TestCase):
+    def test_within_precision(self):
+        self.assertEqual(to_sci(12345, prec=6), "12345")
+        self.assertEqual(to_sci(0, prec=5), "0")
+        self.assertEqual(to_sci(-42, prec=10), "-42")
+
+    def test_exceeding_precision(self):
+        self.assertEqual(to_sci(123456789, prec=6), "1.234568e+8")
+        self.assertEqual(to_sci(-123456789, prec=6), "-1.234568e+8")
+
+    def test_rounding_overflow(self):
+        # 99996 with prec=3 rounds to 10000 -> 1.000e+5
+        self.assertEqual(to_sci(99996, prec=3), "1.000e+5")
+
+    def test_invalid_args(self):
+        with self.assertRaises(TypeError):
+            to_sci("12345")
+        with self.assertRaises(ValueError):
+            to_sci(12345, prec=0)
+
+
+class TestFermatFactor(unittest.TestCase):
+    def test_known_composites(self):
+        # 5959 = 59 * 101
+        res = fermat_factor(5959)
+        self.assertIsNotNone(res)
+        p, q, k = res
+        self.assertEqual((p, q, k), (59, 101, 2))
+        self.assertEqual(p * q, 5959)
+
+        # 8051 = 83 * 97 (k=0)
+        res = fermat_factor(8051)
+        self.assertEqual(res, (83, 97, 0))
+
+        # 143 = 11 * 13 (k=0)
+        res = fermat_factor(143)
+        self.assertEqual(res, (11, 13, 0))
+
+    def test_perfect_squares(self):
+        self.assertEqual(fermat_factor(49), (7, 7, 0))
+        self.assertEqual(fermat_factor(144), (12, 12, 0))
+
+    def test_prime_numbers(self):
+        # Odd primes factor trivially as 1 * p
+        self.assertEqual(fermat_factor(7), (1, 7, 1))
+        self.assertEqual(fermat_factor(17), (1, 17, 4))
+
+    def test_one(self):
+        self.assertEqual(fermat_factor(1), (1, 1, 0))
+
+    def test_start_iter_offset(self):
+        # When starting from 1, iteration offset is tracked properly
+        res = fermat_factor(5959, start_iter=1)
+        self.assertEqual(res, (59, 101, 2))
+
+        # If start_iter is past the solution, it cannot find it if no other square exists before N
+        # For 8051, solution is at k=0. Starting at 1 skips it and tries higher.
+        res_skipped = fermat_factor(8051, start_iter=1)
+        # 8051 = 83 * 97 is product of 2 primes, so after k=0 only 1*8051 exists
+        self.assertIsNotNone(res_skipped)
+        p, q, _ = res_skipped
+        self.assertEqual(p * q, 8051)
+
+    def test_string_and_hex_input(self):
+        self.assertEqual(fermat_factor("5959"), (59, 101, 2))
+        self.assertEqual(fermat_factor("0x1747"), (59, 101, 2))
+        self.assertEqual(fermat_factor(" 5959 "), (59, 101, 2))
+
+    def test_predict_factor_alias(self):
+        self.assertEqual(predict_factor(5959), (59, 101, 2))
+
+    def test_unfactorable_even_numbers(self):
+        # Numbers congruent to 2 mod 4 cannot be written as difference of two squares
+        self.assertIsNone(fermat_factor(6))
+        self.assertIsNone(fermat_factor(10))
+
+    def test_input_validation(self):
+        with self.assertRaises(ValueError):
+            fermat_factor(0)
+        with self.assertRaises(ValueError):
+            fermat_factor(-5959)
+        with self.assertRaises(ValueError):
+            fermat_factor(5959, start_iter=-1)
+        with self.assertRaises(ValueError):
+            fermat_factor(5959, prec=0)
+        with self.assertRaises(ValueError):
+            fermat_factor(5959, print_interval=0)
+        with self.assertRaises(TypeError):
+            fermat_factor([5959])
+
+
 class TestAliasesAndPackageExports(unittest.TestCase):
     def test_convenience_aliases(self):
         self.assertEqual(dlog(2, 5, 13), 9)
         self.assertEqual(egcd(30, 50), (10, 2, -1))
         self.assertEqual(modinv(3, 11), 4)
         self.assertEqual(crt([2, 3, 2], [3, 5, 7]), (23, 105))
+        self.assertEqual(predict_factor(5959), (59, 101, 2))
 
     def test_top_level_package_exports(self):
         import foxmath
@@ -877,8 +985,12 @@ class TestAliasesAndPackageExports(unittest.TestCase):
         self.assertTrue(callable(foxmath.egcd))
         self.assertTrue(callable(foxmath.modinv))
         self.assertTrue(callable(foxmath.crt))
+        self.assertTrue(callable(foxmath.fermat_factor))
+        self.assertTrue(callable(foxmath.predict_factor))
+        self.assertTrue(callable(foxmath.to_sci))
         self.assertEqual(foxmath.jacobi_symbol(10, 13), 1)
         self.assertTrue(foxmath.solovay_strassen(17))
+        self.assertEqual(foxmath.fermat_factor(5959), (59, 101, 2))
 
 
 if __name__ == "__main__":

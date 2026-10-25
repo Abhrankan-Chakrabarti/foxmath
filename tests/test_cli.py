@@ -94,6 +94,14 @@ class TestSymlinkInvocation(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("360 = 2^3 * 3^2 * 5", out)
 
+    def test_fermat_symlink(self):
+        script = self._make_symlink_script("foxmath-fermat")
+        code, out, err = run("5959", script=script)
+        self.assertEqual(code, 0)
+        self.assertIn("Factors of 5959", out)
+        self.assertIn("p = 59", out)
+        self.assertIn("q = 101", out)
+
     def test_totient_symlink(self):
         script = self._make_symlink_script("foxmath-totient")
         code, out, err = run("360", script=script)
@@ -212,6 +220,19 @@ class TestSymlinkInvocation(unittest.TestCase):
         code, out, err = run("derive", "4", "8", "23", script=script)
         self.assertEqual(code, 0)
         self.assertIn("Shared secret S = 2", out)
+
+    def test_mersenne_symlink(self):
+        script = self._make_symlink_script("foxmath-mersenne")
+        code, out, err = run("7", script=script)
+        self.assertEqual(code, 0)
+        self.assertIn("M_7 = 2^7 - 1 = 127", out)
+        self.assertIn("Prime (Lucas-Lehmer test passed)", out)
+
+    def test_perfect_symlink(self):
+        script = self._make_symlink_script("foxmath-perfect")
+        code, out, err = run("28", script=script)
+        self.assertEqual(code, 0)
+        self.assertIn("28 is a perfect number", out)
 
     def test_symlink_with_json(self):
         script = self._make_symlink_script("foxmath-legendre")
@@ -835,6 +856,162 @@ class TestNormalUsage(unittest.TestCase):
         code, out, err = run("challenge", "--topic", "dh", "--count", "3", "--seed", "42", "--reveal")
         self.assertEqual(code, 0)
         self.assertIn("In Diffie-Hellman with p =", out)
+        self.assertIn("Answer:", out)
+
+
+class TestFermatCli(unittest.TestCase):
+    def test_fermat_positional(self):
+        code, out, err = run("fermat", "5959")
+        self.assertEqual(code, 0)
+        self.assertIn("Factors of 5959", out)
+        self.assertIn("p = 59", out)
+        self.assertIn("q = 101", out)
+        self.assertIn("Iterations = 2", out)
+
+    def test_fermat_flag_mod(self):
+        code, out, err = run("fermat", "-n", "5959")
+        self.assertEqual(code, 0)
+        self.assertIn("p = 59", out)
+        self.assertIn("q = 101", out)
+
+    def test_fermat_hex(self):
+        code, out, err = run("fermat", "-n", "0x1747")
+        self.assertEqual(code, 0)
+        self.assertIn("p = 59", out)
+        self.assertIn("q = 101", out)
+
+    def test_fermat_stdin(self):
+        code, out, err = run("fermat", stdin_input="5959\n")
+        self.assertEqual(code, 0)
+        self.assertIn("p = 59", out)
+        self.assertIn("q = 101", out)
+
+    def test_fermat_quiet(self):
+        code, out, err = run("fermat", "-n", "5959", "--quiet")
+        self.assertEqual(code, 0)
+        self.assertIn("p = 59", out)
+        self.assertIn("q = 101", out)
+
+    def test_fermat_start_iter(self):
+        code, out, err = run("fermat", "-n", "5959", "-s", "1")
+        self.assertEqual(code, 0)
+        self.assertIn("p = 59", out)
+        self.assertIn("q = 101", out)
+
+    def test_fermat_json(self):
+        code, out, err = run("fermat", "-n", "5959", "--json")
+        self.assertEqual(code, 0)
+        import json
+        data = json.loads(out)
+        self.assertEqual(data["command"], "fermat")
+        self.assertEqual(data["n"], 5959)
+        self.assertEqual(data["p"], 59)
+        self.assertEqual(data["q"], 101)
+        self.assertEqual(data["iterations"], 2)
+        self.assertTrue(data["success"])
+
+    def test_fermat_failure(self):
+        code, out, err = run("fermat", "-n", "10")
+        self.assertEqual(code, 1)
+        self.assertIn("Failed to factor 10", out)
+
+    def test_fermat_failure_json(self):
+        code, out, err = run("fermat", "-n", "10", "--json")
+        self.assertEqual(code, 1)
+        import json
+        data = json.loads(out)
+        self.assertEqual(data["command"], "fermat")
+        self.assertFalse(data["success"])
+
+    def test_fermat_negative_start_error(self):
+        code, out, err = run("fermat", "-n", "5959", "-s", "-1")
+        self.assertEqual(code, 1)
+        self.assertIn("must be non-negative", err)
+
+    def test_fermat_no_args_error(self):
+        code, out, err = run("fermat")
+        self.assertEqual(code, 1)
+        self.assertIn("Modulus to factor must be provided", err)
+
+    def test_mersenne_prime(self):
+        code, out, err = run("mersenne", "7")
+        self.assertEqual(code, 0)
+        self.assertIn("M_7 = 2^7 - 1 = 127", out)
+        self.assertIn("Prime (Lucas-Lehmer test passed)", out)
+        self.assertIn("Corresponding perfect number: 8128", out)
+
+    def test_mersenne_composite(self):
+        code, out, err = run("mersenne", "11")
+        self.assertEqual(code, 0)
+        self.assertIn("M_11 = 2^11 - 1 = 2047", out)
+        self.assertIn("Composite (Lucas-Lehmer test failed)", out)
+
+    def test_mersenne_composite_exponent(self):
+        code, out, err = run("mersenne", "4")
+        self.assertEqual(code, 0)
+        self.assertIn("M_4 = 2^4 - 1 = 15", out)
+        self.assertIn("Composite (exponent 4 is composite)", out)
+
+    def test_mersenne_list(self):
+        code, out, err = run("mersenne", "--list", "--limit", "31")
+        self.assertEqual(code, 0)
+        self.assertIn("Mersenne prime exponents p <= 31:", out)
+        self.assertIn("2, 3, 5, 7, 13, 17, 19, 31", out)
+
+    def test_mersenne_json(self):
+        code, out, err = run("mersenne", "5", "--json")
+        self.assertEqual(code, 0)
+        import json
+        data = json.loads(out)
+        self.assertEqual(data["command"], "mersenne")
+        self.assertEqual(data["p"], 5)
+        self.assertEqual(data["mp"], 31)
+        self.assertTrue(data["is_prime"])
+        self.assertEqual(data["perfect_number"], 496)
+
+    def test_perfect_test_true(self):
+        code, out, err = run("perfect", "496")
+        self.assertEqual(code, 0)
+        self.assertIn("496 is a perfect number", out)
+
+    def test_perfect_test_false(self):
+        code, out, err = run("perfect", "12")
+        self.assertEqual(code, 0)
+        self.assertIn("12 is not a perfect number", out)
+
+    def test_perfect_from_p(self):
+        code, out, err = run("perfect", "7", "--from-p")
+        self.assertEqual(code, 0)
+        self.assertIn("Even perfect number for p = 7:", out)
+        self.assertIn("8128", out)
+
+    def test_perfect_from_p_json(self):
+        code, out, err = run("perfect", "5", "--from-p", "--json")
+        self.assertEqual(code, 0)
+        import json
+        data = json.loads(out)
+        self.assertEqual(data["command"], "perfect")
+        self.assertEqual(data["action"], "generate")
+        self.assertEqual(data["perfect_number"], 496)
+
+    def test_rsa_crack_fermat_method(self):
+        code, out, err = run("rsa", "crack", "3233", "17", "--method", "fermat")
+        self.assertEqual(code, 0)
+        self.assertIn("Factored n = 3233:", out)
+        self.assertIn("Method       = fermat", out)
+        self.assertIn("p = 61", out)
+        self.assertIn("q = 53", out)
+
+    def test_challenge_mersenne(self):
+        code, out, err = run("challenge", "--topic", "mersenne", "--count", "2", "--seed", "42", "--reveal")
+        self.assertEqual(code, 0)
+        self.assertIn("Is the Mersenne number M_", out)
+        self.assertIn("Answer:", out)
+
+    def test_challenge_perfect(self):
+        code, out, err = run("challenge", "--topic", "perfect", "--count", "2", "--seed", "42", "--reveal")
+        self.assertEqual(code, 0)
+        self.assertIn("perfect number", out)
         self.assertIn("Answer:", out)
 
 
