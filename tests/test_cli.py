@@ -1014,6 +1014,30 @@ class TestFermatCli(unittest.TestCase):
         self.assertIn("perfect number", out)
         self.assertIn("Answer:", out)
 
+    def test_pm1_cli(self):
+        code, out, err = run("pm1", "1393429", "--b1", "20", "--b2", "100")
+        self.assertEqual(code, 0)
+        self.assertIn("Factor found: p = 1009", out)
+        self.assertIn("Cofactor:     q = 1381", out)
+        self.assertIn("Stage:        1", out)
+
+    def test_pm1_json(self):
+        code, out, err = run("pm1", "1393429", "--b1", "20", "--b2", "100", "--json")
+        self.assertEqual(code, 0)
+        import json
+        data = json.loads(out)
+        self.assertEqual(data["command"], "pm1")
+        self.assertEqual(data["factor"], 1009)
+        self.assertEqual(data["cofactor"], 1381)
+        self.assertEqual(data["stage"], 1)
+
+    def test_challenge_pm1(self):
+        code, out, err = run("challenge", "--topic", "pm1", "--count", "2", "--seed", "42", "--reveal")
+        self.assertEqual(code, 0)
+        self.assertIn("hint: p - 1 is smooth", out)
+        self.assertIn("Answer:", out)
+
+
 
 if __name__ == "__main__":
     unittest.main()

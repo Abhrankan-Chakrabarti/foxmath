@@ -1,6 +1,6 @@
 # FoxMath 🦊
 
-**Minimalist CLI & library for number theory and cryptography: Lucas-Lehmer Mersenne primality test & perfect numbers, Fermat's difference of squares, RSA & Diffie-Hellman cryptosystems, BSGS discrete log solver, arithmetic functions (μ, σ, τ), Jacobi symbol & Solovay–Strassen test, Pollard's ρ factorization, totient & Carmichael functions, Tonelli-Shanks roots, interactive REPL, Weierstrass elliptic curves, Chinese Remainder Theorem, and continued fractions.**
+**Minimalist CLI & library for number theory and cryptography: Two-stage Pollard's p-1 factoring, Lucas-Lehmer Mersenne primality test & perfect numbers, Fermat's difference of squares, RSA & Diffie-Hellman cryptosystems, BSGS discrete log solver, arithmetic functions (μ, σ, τ), Jacobi symbol & Solovay–Strassen test, Pollard's ρ factorization, totient & Carmichael functions, Tonelli-Shanks roots, interactive REPL, Weierstrass elliptic curves, Chinese Remainder Theorem, and continued fractions.**
 
 **More about me / other projects:** [abhrankan.duckdns.org](https://abhrankan.duckdns.org)
 
@@ -9,6 +9,7 @@ One binary. Clean output. Zero footguns. Educational by design.
 Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
 
 ## Features
+- Two-stage Pollard's p-1 integer factorization: Stage 1 prime-power exponentiation with automatic prime backtracking and Stage 2 prime difference table (pm1)
 - Lucas–Lehmer deterministic primality test for Mersenne numbers M_p = 2^p - 1 and prime exponent search (mersenne)
 - Euclid–Euler perfect number generator and test: 2^(p-1) * (2^p - 1) (perfect)
 - Fermat's difference of squares factorization: fast factoring when factors are close, with configurable precision, interval, and iteration offset (fermat)
@@ -35,8 +36,8 @@ Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
 - Chinese Remainder Theorem solver (handles non-coprime moduli)
 - Continued fraction expansion and convergents
 - Challenge/quiz mode — practice problems with scoring, or a
-  worksheet mode for self-study (Legendre, Jacobi, CRT, SqrtMod, Factor, Totient, DLog, RSA, DH, Mersenne, Perfect)
-- Symlink-friendly (foxmath-mersenne, foxmath-perfect, foxmath-fermat, foxmath-rsa, foxmath-dh,
+  worksheet mode for self-study (Legendre, Jacobi, CRT, SqrtMod, Factor, Totient, DLog, RSA, DH, Mersenne, Perfect, PM1)
+- Symlink-friendly (foxmath-pm1, foxmath-mersenne, foxmath-perfect, foxmath-fermat, foxmath-rsa, foxmath-dh,
   foxmath-legendre, foxmath-jacobi, foxmath-solovay, foxmath-repl,
   foxmath-sqrtmod, foxmath-isprime, foxmath-factor, foxmath-totient,
   foxmath-order, foxmath-dlog, foxmath-mobius, foxmath-sigma,
@@ -63,7 +64,7 @@ Check which version you have installed:
 foxmath --version
 ```
 ```
-foxmath 0.15.0
+foxmath 0.16.0
 ```
 
 ## Usage Examples
@@ -210,6 +211,20 @@ foxmath perfect 13 --from-p
 ```
 Even perfect number for p = 13:
   2^12 * (2^13 - 1) = 33550336
+```
+
+```bash
+# Two-stage Pollard's p-1 integer factorization (B1=20, B2=100)
+foxmath pm1 1393429 --b1 20 --b2 100
+```
+```
+Factor found: p = 1009
+Cofactor:     q = 1381
+Stage:        1
+Bounds:       B1 = 20, B2 = 100
+p - 1:        1008 = 2^4 * 3^2 * 7
+Steps:        4
+Time:         78 µs
 ```
 
 ```bash
@@ -419,7 +434,7 @@ foxmath challenge --topic ecdlp --count 1 --seed 9 --reveal
 ```
 
 Drop `--reveal` to answer interactively instead, with scoring at the end.
-`--topic` accepts `rsa`, `dh`, `mersenne`, `perfect`, `legendre`, `jacobi`, `crt`, `ecdlp`, `sqrtmod`, `factor`, `totient`, `dlog`, or `mixed` (default).
+`--topic` accepts `rsa`, `dh`, `pm1`, `mersenne`, `perfect`, `legendre`, `jacobi`, `crt`, `ecdlp`, `sqrtmod`, `factor`, `totient`, `dlog`, or `mixed` (default).
 
 ```bash
 # JSON output

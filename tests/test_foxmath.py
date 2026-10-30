@@ -21,7 +21,7 @@ from foxmath.foxmath import (
     euler_phi, carmichael_lambda, multiplicative_order, is_primitive_root,
     discrete_log, mobius, tau, sigma,
     dlog, egcd, modinv, crt,
-    fermat_factor, predict_factor, to_sci,
+    fermat_factor, predict_factor, to_sci, pollard_pm1,
 )
 import random
 
@@ -734,8 +734,8 @@ class TestChallengeGenerators(unittest.TestCase):
 
     def test_mixed_topic_produces_all_kinds(self):
         rng = random.Random(1)
-        topics = {generate_problem("mixed", rng)["topic"] for _ in range(350)}
-        self.assertEqual(topics, {"legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "dlog", "jacobi", "rsa", "dh", "mersenne", "perfect"})
+        topics = {generate_problem("mixed", rng)["topic"] for _ in range(500)}
+        self.assertEqual(topics, {"legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "dlog", "jacobi", "rsa", "dh", "mersenne", "perfect", "pm1"})
 
     def test_reproducible_with_same_seed(self):
         p1 = generate_problem("legendre", random.Random(99))
@@ -991,6 +991,51 @@ class TestAliasesAndPackageExports(unittest.TestCase):
         self.assertEqual(foxmath.jacobi_symbol(10, 13), 1)
         self.assertTrue(foxmath.solovay_strassen(17))
         self.assertEqual(foxmath.fermat_factor(5959), (59, 101, 2))
+        self.assertTrue(callable(foxmath.pollard_pm1))
+
+
+class TestPollardPm1(unittest.TestCase):
+    def test_stage_1_success(self):
+        # 1009 * 1381 = 1393429. 1009 - 1 = 1008 = 2^4 * 3^2 * 7.
+        res = pollard_pm1(1393429, b1=20)
+        self.assertTrue(res["success"])
+        self.assertEqual(res["factor"], 1009)
+        self.assertEqual(res["cofactor"], 1381)
+        self.assertEqual(res["stage"], 1)
+        self.assertEqual(res["p_minus_1"], 1008)
+
+    def test_stage_2_success(self):
+        # 1019 * 1381 = 1407239. 1019 - 1 = 2 * 509.
+        res = pollard_pm1(1407239, b1=2, b2=600)
+        self.assertTrue(res["success"])
+        self.assertEqual(res["factor"], 1019)
+        self.assertEqual(res["cofactor"], 1381)
+        self.assertEqual(res["stage"], 2)
+        self.assertEqual(res["p_minus_1"], 1018)
+
+    def test_prime_input(self):
+        res = pollard_pm1(1009, b1=100)
+        self.assertFalse(res["success"])
+        self.assertIsNone(res["factor"])
+        self.assertIn("already prime", res["message"])
+
+    def test_even_input(self):
+        res = pollard_pm1(2048, b1=100)
+        self.assertTrue(res["success"])
+        self.assertEqual(res["factor"], 2)
+
+    def test_failure_small_bounds(self):
+        res = pollard_pm1(1407239, b1=3, b2=10)
+        self.assertFalse(res["success"])
+        self.assertIsNone(res["factor"])
+
+    def test_challenge_pm1(self):
+        rng = random.Random(42)
+        prob = generate_problem("pm1", rng)
+        self.assertEqual(prob["topic"], "pm1")
+        self.assertIn("p - 1 is smooth", prob["question"])
+        self.assertGreater(prob["answer"], 1)
+
 
 
 if __name__ == "__main__":

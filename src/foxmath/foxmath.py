@@ -284,6 +284,279 @@ def predict_factor(
         start_iter=start_iter,
     )
 
+def pollard_pm1(
+    n: int,
+    b1: int = 1000,
+    b2: int | None = None,
+    a: int = 2,
+) -> dict:
+    """Factor an integer n using Pollard's p - 1 algorithm with two-stage smoothness bounds.
+
+    Returns a dict with factor, cofactor, stage, smoothness information, and steps.
+    """
+    if isinstance(n, str):
+        data = n.strip()
+        if data.startswith(("0x", "0X")):
+            n = int(data, 16)
+        else:
+            n = int(data)
+
+    if not isinstance(n, int):
+        raise TypeError("n must be an integer")
+    if n < 2:
+        raise ValueError("n must be an integer >= 2")
+
+    if not isinstance(b1, int) or b1 < 2:
+        raise ValueError("b1 must be an integer >= 2")
+
+    if b2 is None:
+        b2 = b1 * 10
+    if not isinstance(b2, int) or b2 < b1:
+        raise ValueError("b2 must be an integer >= b1")
+
+    if not isinstance(a, int) or a <= 1 or a >= n:
+        raise ValueError(f"base a must be an integer with 1 < a < {n}")
+
+    start_time = time.perf_counter()
+
+    if n % 2 == 0:
+        p = 2
+        q = n // 2
+        p_factors = factorize(p - 1)
+        elapsed_us = int((time.perf_counter() - start_time) * 1_000_000)
+        return {
+            "n": n,
+            "factor": p,
+            "cofactor": q,
+            "success": True,
+            "stage": 0,
+            "b1": b1,
+            "b2": b2,
+            "base": a,
+            "p_minus_1": p - 1,
+            "p_minus_1_factors": p_factors,
+            "p_minus_1_expression": format_factorization(p_factors),
+            "steps": 0,
+            "message": "n is even; factor 2 found immediately",
+            "elapsed_us": elapsed_us,
+        }
+
+    if is_prime(n):
+        elapsed_us = int((time.perf_counter() - start_time) * 1_000_000)
+        return {
+            "n": n,
+            "factor": None,
+            "cofactor": None,
+            "success": False,
+            "stage": None,
+            "b1": b1,
+            "b2": b2,
+            "base": a,
+            "p_minus_1": None,
+            "p_minus_1_factors": None,
+            "p_minus_1_expression": None,
+            "steps": 0,
+            "message": f"n = {n} is already prime",
+            "elapsed_us": elapsed_us,
+        }
+
+    g0 = gcd(a, n)
+    if 1 < g0 < n:
+        p = min(g0, n // g0)
+        q = n // p
+        p_factors = factorize(p - 1)
+        elapsed_us = int((time.perf_counter() - start_time) * 1_000_000)
+        return {
+            "n": n,
+            "factor": p,
+            "cofactor": q,
+            "success": True,
+            "stage": 0,
+            "b1": b1,
+            "b2": b2,
+            "base": a,
+            "p_minus_1": p - 1,
+            "p_minus_1_factors": p_factors,
+            "p_minus_1_expression": format_factorization(p_factors),
+            "steps": 0,
+            "message": f"Base {a} shares non-trivial factor {p} with n",
+            "elapsed_us": elapsed_us,
+        }
+
+    def primes_up_to(limit: int) -> list:
+        s = [True] * (limit + 1)
+        s[0] = s[1] = False
+        for p in range(2, int(limit**0.5) + 1):
+            if s[p]:
+                for i in range(p * p, limit + 1, p):
+                    s[i] = False
+        return [i for i, v in enumerate(s) if v]
+
+    all_primes = primes_up_to(b2)
+    s1_primes = [p for p in all_primes if p <= b1]
+    s2_primes = [p for p in all_primes if p > b1]
+
+    x = a
+    steps = 0
+
+    # Stage 1
+    for q in s1_primes:
+        steps += 1
+        pk = q
+        k = 1
+        while pk * q <= b1:
+            pk *= q
+            k += 1
+
+        prev_x = x
+        x = pow(x, pk, n)
+        g = gcd(x - 1, n)
+
+        if 1 < g < n:
+            p = min(g, n // g)
+            q_factor = n // p
+            p_factors = factorize(p - 1)
+            elapsed_us = int((time.perf_counter() - start_time) * 1_000_000)
+            return {
+                "n": n,
+                "factor": p,
+                "cofactor": q_factor,
+                "success": True,
+                "stage": 1,
+                "b1": b1,
+                "b2": b2,
+                "base": a,
+                "p_minus_1": p - 1,
+                "p_minus_1_factors": p_factors,
+                "p_minus_1_expression": format_factorization(p_factors),
+                "steps": steps,
+                "message": f"Found non-trivial factor p = {p} in Stage 1 at prime {q}",
+                "elapsed_us": elapsed_us,
+            }
+
+        if g == n:
+            curr = prev_x
+            for _ in range(k):
+                curr = pow(curr, q, n)
+                g_sub = gcd(curr - 1, n)
+                if 1 < g_sub < n:
+                    p = min(g_sub, n // g_sub)
+                    q_factor = n // p
+                    p_factors = factorize(p - 1)
+                    elapsed_us = int((time.perf_counter() - start_time) * 1_000_000)
+                    return {
+                        "n": n,
+                        "factor": p,
+                        "cofactor": q_factor,
+                        "success": True,
+                        "stage": 1,
+                        "b1": b1,
+                        "b2": b2,
+                        "base": a,
+                        "p_minus_1": p - 1,
+                        "p_minus_1_factors": p_factors,
+                        "p_minus_1_expression": format_factorization(p_factors),
+                        "steps": steps,
+                        "message": f"Found non-trivial factor p = {p} in Stage 1 backtrack at prime {q}",
+                        "elapsed_us": elapsed_us,
+                    }
+                if g_sub == n:
+                    break
+            elapsed_us = int((time.perf_counter() - start_time) * 1_000_000)
+            return {
+                "n": n,
+                "factor": None,
+                "cofactor": None,
+                "success": False,
+                "stage": 1,
+                "b1": b1,
+                "b2": b2,
+                "base": a,
+                "p_minus_1": None,
+                "p_minus_1_factors": None,
+                "p_minus_1_expression": None,
+                "steps": steps,
+                "message": f"Stage 1 failed: all factors congruent to 1 mod n at prime {q}. Try a smaller B1 or different base.",
+                "elapsed_us": elapsed_us,
+            }
+
+    # Stage 2
+    if s2_primes:
+        a0 = x
+        q1 = s2_primes[0]
+        cur_x = pow(a0, q1, n)
+        steps += 1
+        g = gcd(cur_x - 1, n)
+        if 1 < g < n:
+            p = min(g, n // g)
+            q_factor = n // p
+            p_factors = factorize(p - 1)
+            elapsed_us = int((time.perf_counter() - start_time) * 1_000_000)
+            return {
+                "n": n,
+                "factor": p,
+                "cofactor": q_factor,
+                "success": True,
+                "stage": 2,
+                "b1": b1,
+                "b2": b2,
+                "base": a,
+                "p_minus_1": p - 1,
+                "p_minus_1_factors": p_factors,
+                "p_minus_1_expression": format_factorization(p_factors),
+                "steps": steps,
+                "message": f"Found non-trivial factor p = {p} in Stage 2 at prime {q1}",
+                "elapsed_us": elapsed_us,
+            }
+
+        a0_d = {}
+        for i in range(len(s2_primes) - 1):
+            d = s2_primes[i + 1] - s2_primes[i]
+            if d not in a0_d:
+                a0_d[d] = pow(a0, d, n)
+            cur_x = (cur_x * a0_d[d]) % n
+            steps += 1
+            g = gcd(cur_x - 1, n)
+            if 1 < g < n:
+                p = min(g, n // g)
+                q_factor = n // p
+                p_factors = factorize(p - 1)
+                elapsed_us = int((time.perf_counter() - start_time) * 1_000_000)
+                return {
+                    "n": n,
+                    "factor": p,
+                    "cofactor": q_factor,
+                    "success": True,
+                    "stage": 2,
+                    "b1": b1,
+                    "b2": b2,
+                    "base": a,
+                    "p_minus_1": p - 1,
+                    "p_minus_1_factors": p_factors,
+                    "p_minus_1_expression": format_factorization(p_factors),
+                    "steps": steps,
+                    "message": f"Found non-trivial factor p = {p} in Stage 2 at prime {s2_primes[i + 1]}",
+                    "elapsed_us": elapsed_us,
+                }
+
+    elapsed_us = int((time.perf_counter() - start_time) * 1_000_000)
+    return {
+        "n": n,
+        "factor": None,
+        "cofactor": None,
+        "success": False,
+        "stage": None,
+        "b1": b1,
+        "b2": b2,
+        "base": a,
+        "p_minus_1": None,
+        "p_minus_1_factors": None,
+        "p_minus_1_expression": None,
+        "steps": steps,
+        "message": f"No non-trivial factor found with B1 = {b1}, B2 = {b2}. Try increasing bounds or changing base.",
+        "elapsed_us": elapsed_us,
+    }
+
 def euler_phi(n: int) -> int:
     """Euler's totient function phi(n). Counts positive integers <= n coprime to n."""
     if not isinstance(n, int):
@@ -1281,6 +1554,18 @@ def _generate_perfect_problem(rng: random.Random) -> dict:
             "answer": ans,
         }
 
+def _generate_pm1_problem(rng: random.Random) -> dict:
+    smooth_primes = [29, 37, 41, 73, 97, 101, 109, 113, 137, 181, 193, 241, 257, 337, 433, 577, 601, 641, 769, 1009]
+    other_primes = [103, 107, 127, 131, 139, 149, 151, 157, 163, 167, 173, 179]
+    p = rng.choice(smooth_primes)
+    q = rng.choice(other_primes)
+    n = p * q
+    return {
+        "topic": "pm1",
+        "question": f"Smallest prime factor of composite n = {n} (hint: p - 1 is smooth)",
+        "answer": min(p, q),
+    }
+
 _TOPIC_GENERATORS = {
     "legendre": _generate_legendre_problem,
     "crt": _generate_crt_problem,
@@ -1294,6 +1579,7 @@ _TOPIC_GENERATORS = {
     "dh": _generate_dh_problem,
     "mersenne": _generate_mersenne_problem,
     "perfect": _generate_perfect_problem,
+    "pm1": _generate_pm1_problem,
 }
 
 def generate_problem(topic: str, rng: random.Random) -> dict:
@@ -1605,12 +1891,19 @@ def main():
     perfect_cmd.add_argument("n", type=int, help="Integer n to test, or exponent p if --from-p is set")
     perfect_cmd.add_argument("-p", "--from-p", action="store_true", help="Generate even perfect number from Mersenne exponent p")
 
+    # Pollard p - 1
+    pm1_cmd = subparsers.add_parser("pm1", help="Pollard's p - 1 integer factorization")
+    pm1_cmd.add_argument("n", type=int, help="Integer to factor (n >= 2)")
+    pm1_cmd.add_argument("--b1", type=int, default=1000, help="Stage 1 smoothness bound (default: 1000)")
+    pm1_cmd.add_argument("--b2", type=int, default=None, help="Stage 2 smoothness bound (default: b1 * 10)")
+    pm1_cmd.add_argument("-a", "--base", type=int, default=2, help="Base a (default: 2)")
+
     # Interactive REPL
     subparsers.add_parser("repl", help="Interactive FoxMath REPL")
 
     # Challenge / quiz mode
-    challenge = subparsers.add_parser("challenge", help="Practice problems (Legendre, Jacobi, CRT, SqrtMod, Factor, Totient, DLog, RSA, DH, Mersenne, Perfect)")
-    challenge.add_argument("--topic", choices=["legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "dlog", "jacobi", "rsa", "dh", "mersenne", "perfect", "mixed"], default="mixed")
+    challenge = subparsers.add_parser("challenge", help="Practice problems (Legendre, Jacobi, CRT, SqrtMod, Factor, Totient, DLog, RSA, DH, Mersenne, Perfect, PM1)")
+    challenge.add_argument("--topic", choices=["legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "dlog", "jacobi", "rsa", "dh", "mersenne", "perfect", "pm1", "mixed"], default="mixed")
     challenge.add_argument("--count", type=int, default=5, help="Number of problems")
     challenge.add_argument("--seed", type=int, help="Random seed for reproducible problem sets")
     challenge.add_argument("--reveal", action="store_true",
@@ -2062,6 +2355,21 @@ def main():
                         print(f"{args.n} is a perfect number (sum of proper divisors equals {args.n})")
                     else:
                         print(f"{args.n} is not a perfect number")
+
+        elif cmd == "pm1" or args.command == "pm1":
+            res = pollard_pm1(args.n, b1=args.b1, b2=args.b2, a=args.base)
+            result.update({"command": "pm1", **res})
+            if not json_output:
+                if res["success"]:
+                    print(f"Factor found: p = {res['factor']}")
+                    print(f"Cofactor:     q = {res['cofactor']}")
+                    print(f"Stage:        {res['stage']}")
+                    print(f"Bounds:       B1 = {res['b1']}, B2 = {res['b2']}")
+                    print(f"p - 1:        {res['p_minus_1']} = {res['p_minus_1_expression']}")
+                    print(f"Steps:        {res['steps']}")
+                    print(f"Time:         {res['elapsed_us']} µs")
+                else:
+                    print(res["message"])
 
         elif cmd == "repl" or args.command == "repl":
             cmd_repl()
