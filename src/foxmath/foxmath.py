@@ -12,6 +12,7 @@ import time
 from collections import Counter
 from decimal import Decimal, getcontext
 from importlib import metadata
+import math
 from math import gcd, isqrt
 from pathlib import Path
 
@@ -812,6 +813,248 @@ def lenstra_ecm(
         "b": None,
         "steps": total_steps,
         "message": f"No non-trivial factor found across {max_curves} curves with B1 = {b1}, B2 = {b2}. Try increasing curves or bounds.",
+        "elapsed_us": elapsed_us,
+    }
+
+def dixon_factor(
+    n: int,
+    b: int = 50,
+    max_steps: int = 50000,
+) -> dict:
+    """Factor an integer n using Dixon's random squares method with factor base and linear algebra over GF(2)."""
+    if isinstance(n, str):
+        data = n.strip()
+        if data.startswith(("0x", "0X")):
+            n = int(data, 16)
+        else:
+            n = int(data)
+
+    if not isinstance(n, int):
+        raise TypeError("n must be an integer")
+    if n < 2:
+        raise ValueError("n must be an integer >= 2")
+
+    if not isinstance(b, int) or b < 10:
+        raise ValueError("b must be an integer >= 10")
+    if not isinstance(max_steps, int) or max_steps < 10:
+        raise ValueError("max_steps must be an integer >= 10")
+
+    start_time = time.perf_counter()
+
+    if n % 2 == 0:
+        elapsed_us = int((time.perf_counter() - start_time) * 1_000_000)
+        return {
+            "n": n,
+            "factor": 2,
+            "cofactor": n // 2,
+            "success": True,
+            "b": b,
+            "factor_base_size": 1,
+            "relations_needed": 1,
+            "relations_found": 1,
+            "x": None,
+            "y": None,
+            "congruence": None,
+            "steps": 0,
+            "message": "n is even; factor 2 found immediately",
+            "elapsed_us": elapsed_us,
+        }
+
+    root = int(math.isqrt(n))
+    if root * root == n:
+        elapsed_us = int((time.perf_counter() - start_time) * 1_000_000)
+        return {
+            "n": n,
+            "factor": root,
+            "cofactor": root,
+            "success": True,
+            "b": b,
+            "factor_base_size": 1,
+            "relations_needed": 1,
+            "relations_found": 1,
+            "x": root,
+            "y": 0,
+            "congruence": f"{root}² ≡ 0² (mod {n})",
+            "steps": 0,
+            "message": f"n = {n} is a perfect square: {root}²",
+            "elapsed_us": elapsed_us,
+        }
+
+    if is_prime(n):
+        elapsed_us = int((time.perf_counter() - start_time) * 1_000_000)
+        return {
+            "n": n,
+            "factor": None,
+            "cofactor": None,
+            "success": False,
+            "b": b,
+            "factor_base_size": 0,
+            "relations_needed": 0,
+            "relations_found": 0,
+            "x": None,
+            "y": None,
+            "congruence": None,
+            "steps": 0,
+            "message": f"n = {n} is already prime",
+            "elapsed_us": elapsed_us,
+        }
+
+    # Factor base: [-1, 2] + odd primes p <= b with (n/p) == 1
+    def primes_up_to(limit: int) -> list:
+        s = [True] * (limit + 1)
+        s[0] = s[1] = False
+        for p in range(2, int(limit**0.5) + 1):
+            if s[p]:
+                for i in range(p * p, limit + 1, p):
+                    s[i] = False
+        return [i for i, v in enumerate(s) if v]
+
+    fb = [-1, 2]
+    for p in primes_up_to(b):
+        if p > 2 and legendre_symbol(n % p, p) == 1:
+            fb.append(p)
+
+    k = len(fb)
+    relations_needed = k + 10
+    relations = []
+    x = root + 1
+    steps = 0
+
+    while len(relations) < relations_needed and steps < max_steps:
+        steps += 1
+        x_sq = (x * x) % n
+        r = x_sq - n if x_sq > n // 2 else x_sq
+
+        temp = r
+        exps = [0] * k
+        if temp < 0:
+            exps[0] = 1
+            temp = -temp
+
+        for idx in range(1, k):
+            p = fb[idx]
+            while temp > 0 and temp % p == 0:
+                exps[idx] += 1
+                temp //= p
+
+        if temp == 1:
+            parity = [e % 2 for e in exps]
+            relations.append((x, r, exps, parity))
+
+        x += 1
+
+    relations_found = len(relations)
+    if relations_found <= k:
+        elapsed_us = int((time.perf_counter() - start_time) * 1_000_000)
+        return {
+            "n": n,
+            "factor": None,
+            "cofactor": None,
+            "success": False,
+            "b": b,
+            "factor_base_size": k,
+            "relations_needed": relations_needed,
+            "relations_found": relations_found,
+            "x": None,
+            "y": None,
+            "congruence": None,
+            "steps": steps,
+            "message": f"Insufficient smooth relations found (found {relations_found} of {relations_needed} needed with B = {b}). Try increasing B or max steps.",
+            "elapsed_us": elapsed_us,
+        }
+
+    # Gaussian elimination over GF(2)
+    num_rels = len(relations)
+    matrix = [list(r[3]) for r in relations]
+    tracking = [[1 if i == j else 0 for j in range(num_rels)] for i in range(num_rels)]
+    is_pivot = [False] * num_rels
+
+    for col in range(k):
+        found = None
+        for r in range(num_rels):
+            if not is_pivot[r] and matrix[r][col] == 1:
+                found = r
+                break
+        if found is not None:
+            is_pivot[found] = True
+            pivot_row = list(matrix[found])
+            pivot_track = list(tracking[found])
+            for r in range(num_rels):
+                if r != found and matrix[r][col] == 1:
+                    matrix[r] = [a ^ b for a, b in zip(matrix[r], pivot_row)]
+                    tracking[r] = [a ^ b for a, b in zip(tracking[r], pivot_track)]
+
+    # Search null-space rows
+    for r in range(num_rels):
+        if all(v == 0 for v in matrix[r]):
+            subset = [i for i, bit in enumerate(tracking[r]) if bit == 1]
+            if not subset:
+                continue
+
+            x_prod = 1
+            for idx in subset:
+                x_prod = (x_prod * relations[idx][0]) % n
+
+            total_exp = [0] * k
+            for idx in subset:
+                for j in range(k):
+                    total_exp[j] += relations[idx][2][j]
+
+            if total_exp[0] % 2 != 0:
+                continue
+
+            y_prod = 1
+            all_even = True
+            for j in range(1, k):
+                if total_exp[j] % 2 != 0:
+                    all_even = False
+                    break
+                y_prod = (y_prod * pow(fb[j], total_exp[j] // 2, n)) % n
+
+            if not all_even:
+                continue
+
+            x_val = x_prod
+            y_val = y_prod
+
+            for diff in [abs(x_val - y_val), x_val + y_val]:
+                g = math.gcd(diff, n)
+                if 1 < g < n:
+                    p = min(g, n // g)
+                    q = n // p
+                    elapsed_us = int((time.perf_counter() - start_time) * 1_000_000)
+                    return {
+                        "n": n,
+                        "factor": p,
+                        "cofactor": q,
+                        "success": True,
+                        "b": b,
+                        "factor_base_size": k,
+                        "relations_needed": relations_needed,
+                        "relations_found": relations_found,
+                        "x": x_val,
+                        "y": y_val,
+                        "congruence": f"{x_val}² ≡ {y_val}² (mod {n})",
+                        "steps": steps,
+                        "message": f"Found factor p = {p} via congruent squares {x_val}² ≡ {y_val}² (mod {n})",
+                        "elapsed_us": elapsed_us,
+                    }
+
+    elapsed_us = int((time.perf_counter() - start_time) * 1_000_000)
+    return {
+        "n": n,
+        "factor": None,
+        "cofactor": None,
+        "success": False,
+        "b": b,
+        "factor_base_size": k,
+        "relations_needed": relations_needed,
+        "relations_found": relations_found,
+        "x": None,
+        "y": None,
+        "congruence": None,
+        "steps": steps,
+        "message": f"Collected {relations_found} smooth relations with B = {b}, but null-space congruences yielded trivial factors. Try increasing B.",
         "elapsed_us": elapsed_us,
     }
 
@@ -1836,6 +2079,18 @@ def _generate_ecm_problem(rng: random.Random) -> dict:
         "answer": min(p, q),
     }
 
+def _generate_dixon_problem(rng: random.Random) -> dict:
+    primes_p = [23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71]
+    primes_q = [73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131]
+    p = rng.choice(primes_p)
+    q = rng.choice(primes_q)
+    n = p * q
+    return {
+        "topic": "dixon",
+        "question": f"Smallest prime factor of composite n = {n} (hint: use Dixon's random squares method)",
+        "answer": min(p, q),
+    }
+
 _TOPIC_GENERATORS = {
     "legendre": _generate_legendre_problem,
     "crt": _generate_crt_problem,
@@ -1851,6 +2106,7 @@ _TOPIC_GENERATORS = {
     "perfect": _generate_perfect_problem,
     "pm1": _generate_pm1_problem,
     "ecm": _generate_ecm_problem,
+    "dixon": _generate_dixon_problem,
 }
 
 def generate_problem(topic: str, rng: random.Random) -> dict:
@@ -1931,6 +2187,8 @@ def cmd_repl() -> None:
         "pm1": pollard_pm1,
         "lenstra_ecm": lenstra_ecm,
         "ecm": lenstra_ecm,
+        "dixon_factor": dixon_factor,
+        "dixon": dixon_factor,
     }
     code.interact(banner="", local=namespace, exitmsg="")
 
@@ -2181,12 +2439,18 @@ def main():
     ecm_cmd.add_argument("--curves", type=int, default=20, help="Maximum curves to test (default: 20)")
     ecm_cmd.add_argument("--seed", type=int, default=42, help="Random seed for reproducible curve generation (default: 42)")
 
+    # Dixon's random squares
+    dixon_cmd = subparsers.add_parser("dixon", help="Dixon's random squares integer factorization")
+    dixon_cmd.add_argument("n", type=int, help="Integer to factor (n >= 2)")
+    dixon_cmd.add_argument("--b", type=int, default=50, help="Factor base smoothness bound (default: 50)")
+    dixon_cmd.add_argument("--max-steps", type=int, default=50000, help="Maximum search steps (default: 50000)")
+
     # Interactive REPL
     subparsers.add_parser("repl", help="Interactive FoxMath REPL")
 
     # Challenge / quiz mode
-    challenge = subparsers.add_parser("challenge", help="Practice problems (Legendre, Jacobi, CRT, SqrtMod, Factor, Totient, DLog, RSA, DH, Mersenne, Perfect, PM1, ECM)")
-    challenge.add_argument("--topic", choices=["legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "dlog", "jacobi", "rsa", "dh", "mersenne", "perfect", "pm1", "ecm", "mixed"], default="mixed")
+    challenge = subparsers.add_parser("challenge", help="Practice problems (Legendre, Jacobi, CRT, SqrtMod, Factor, Totient, DLog, RSA, DH, Mersenne, Perfect, PM1, ECM, Dixon)")
+    challenge.add_argument("--topic", choices=["legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "dlog", "jacobi", "rsa", "dh", "mersenne", "perfect", "pm1", "ecm", "dixon", "mixed"], default="mixed")
     challenge.add_argument("--count", type=int, default=5, help="Number of problems")
     challenge.add_argument("--seed", type=int, help="Random seed for reproducible problem sets")
     challenge.add_argument("--reveal", action="store_true",
@@ -2666,6 +2930,22 @@ def main():
                     print(f"Bounds:       B1 = {res['b1']}, B2 = {res['b2']}")
                     if res["a"] is not None:
                         print(f"Curve params: a = {res['a']}, b = {res['b']}")
+                    print(f"Steps:        {res['steps']}")
+                    print(f"Time:         {res['elapsed_us']} µs")
+                else:
+                    print(res["message"])
+
+        elif cmd == "dixon" or args.command == "dixon":
+            res = dixon_factor(args.n, b=args.b, max_steps=args.max_steps)
+            result.update({"command": "dixon", **res})
+            if not json_output:
+                if res["success"]:
+                    print(f"Factor found: p = {res['factor']}")
+                    print(f"Cofactor:     q = {res['cofactor']}")
+                    print(f"Bound B:      {res['b']} (Factor base size: {res['factor_base_size']})")
+                    print(f"Relations:    {res['relations_found']} of {res['relations_needed']} needed")
+                    if res["congruence"] is not None:
+                        print(f"Congruence:   {res['congruence']}")
                     print(f"Steps:        {res['steps']}")
                     print(f"Time:         {res['elapsed_us']} µs")
                 else:

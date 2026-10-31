@@ -21,7 +21,7 @@ from foxmath.foxmath import (
     euler_phi, carmichael_lambda, multiplicative_order, is_primitive_root,
     discrete_log, mobius, tau, sigma,
     dlog, egcd, modinv, crt,
-    fermat_factor, predict_factor, to_sci, pollard_pm1, lenstra_ecm,
+    fermat_factor, predict_factor, to_sci, pollard_pm1, lenstra_ecm, dixon_factor,
 )
 import random
 
@@ -735,7 +735,7 @@ class TestChallengeGenerators(unittest.TestCase):
     def test_mixed_topic_produces_all_kinds(self):
         rng = random.Random(1)
         topics = {generate_problem("mixed", rng)["topic"] for _ in range(500)}
-        self.assertEqual(topics, {"legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "dlog", "jacobi", "rsa", "dh", "mersenne", "perfect", "pm1", "ecm"})
+        self.assertEqual(topics, {"legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "dlog", "jacobi", "rsa", "dh", "mersenne", "perfect", "pm1", "ecm", "dixon"})
 
     def test_reproducible_with_same_seed(self):
         p1 = generate_problem("legendre", random.Random(99))
@@ -993,6 +993,7 @@ class TestAliasesAndPackageExports(unittest.TestCase):
         self.assertEqual(foxmath.fermat_factor(5959), (59, 101, 2))
         self.assertTrue(callable(foxmath.pollard_pm1))
         self.assertTrue(callable(foxmath.lenstra_ecm))
+        self.assertTrue(callable(foxmath.dixon_factor))
 
 
 class TestPollardPm1(unittest.TestCase):
@@ -1078,6 +1079,59 @@ class TestLenstraEcm(unittest.TestCase):
         prob = generate_problem("ecm", rng)
         self.assertEqual(prob["topic"], "ecm")
         self.assertIn("elliptic curve", prob["question"])
+        self.assertGreater(prob["answer"], 1)
+
+
+class TestDixonFactor(unittest.TestCase):
+    def test_dixon_success_84923(self):
+        # 163 * 521 = 84923 with B = 30
+        res = dixon_factor(84923, b=30)
+        self.assertTrue(res["success"])
+        self.assertIn(res["factor"], (163, 521))
+        self.assertEqual(res["factor"] * res["cofactor"], 84923)
+        self.assertIsNotNone(res["congruence"])
+
+    def test_dixon_success_1042387(self):
+        # 701 * 1487 = 1042387 with B = 50
+        res = dixon_factor(1042387, b=50)
+        self.assertTrue(res["success"])
+        self.assertIn(res["factor"], (701, 1487))
+        self.assertEqual(res["factor"] * res["cofactor"], 1042387)
+
+    def test_dixon_success_1393429(self):
+        # 1009 * 1381 = 1393429 with B = 50
+        res = dixon_factor(1393429, b=50)
+        self.assertTrue(res["success"])
+        self.assertIn(res["factor"], (1009, 1381))
+        self.assertEqual(res["factor"] * res["cofactor"], 1393429)
+
+    def test_perfect_square(self):
+        res = dixon_factor(169)
+        self.assertTrue(res["success"])
+        self.assertEqual(res["factor"], 13)
+
+    def test_prime_input(self):
+        res = dixon_factor(104729)
+        self.assertFalse(res["success"])
+        self.assertIsNone(res["factor"])
+        self.assertIn("already prime", res["message"])
+
+    def test_even_input(self):
+        res = dixon_factor(1000)
+        self.assertTrue(res["success"])
+        self.assertEqual(res["factor"], 2)
+
+    def test_invalid_input(self):
+        with self.assertRaises(ValueError):
+            dixon_factor(1)
+        with self.assertRaises(ValueError):
+            dixon_factor(84923, b=5)
+
+    def test_challenge_dixon(self):
+        rng = random.Random(42)
+        prob = generate_problem("dixon", rng)
+        self.assertEqual(prob["topic"], "dixon")
+        self.assertIn("Dixon's random squares", prob["question"])
         self.assertGreater(prob["answer"], 1)
 
 

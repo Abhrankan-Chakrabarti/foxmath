@@ -1059,6 +1059,28 @@ class TestFermatCli(unittest.TestCase):
         self.assertIn("hint: use Lenstra elliptic curve factorization", out)
         self.assertIn("Answer:", out)
 
+    def test_dixon_cli(self):
+        code, out, err = run("dixon", "84923", "--b", "30")
+        self.assertEqual(code, 0)
+        self.assertIn("Factor found:", out)
+        self.assertIn("Congruence:", out)
+
+    def test_dixon_json(self):
+        code, out, err = run("dixon", "84923", "--b", "30", "--json")
+        self.assertEqual(code, 0)
+        import json
+        data = json.loads(out)
+        self.assertEqual(data["command"], "dixon")
+        self.assertTrue(data["success"])
+        self.assertIn(data["factor"], (163, 521))
+        self.assertEqual(data["factor"] * data["cofactor"], 84923)
+
+    def test_challenge_dixon(self):
+        code, out, err = run("challenge", "--topic", "dixon", "--count", "2", "--seed", "42", "--reveal")
+        self.assertEqual(code, 0)
+        self.assertIn("hint: use Dixon's random squares method", out)
+        self.assertIn("Answer:", out)
+
 
 
 if __name__ == "__main__":
