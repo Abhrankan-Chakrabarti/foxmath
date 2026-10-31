@@ -21,7 +21,7 @@ from foxmath.foxmath import (
     euler_phi, carmichael_lambda, multiplicative_order, is_primitive_root,
     discrete_log, mobius, tau, sigma,
     dlog, egcd, modinv, crt,
-    fermat_factor, predict_factor, to_sci, pollard_pm1,
+    fermat_factor, predict_factor, to_sci, pollard_pm1, lenstra_ecm,
 )
 import random
 
@@ -735,7 +735,7 @@ class TestChallengeGenerators(unittest.TestCase):
     def test_mixed_topic_produces_all_kinds(self):
         rng = random.Random(1)
         topics = {generate_problem("mixed", rng)["topic"] for _ in range(500)}
-        self.assertEqual(topics, {"legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "dlog", "jacobi", "rsa", "dh", "mersenne", "perfect", "pm1"})
+        self.assertEqual(topics, {"legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "dlog", "jacobi", "rsa", "dh", "mersenne", "perfect", "pm1", "ecm"})
 
     def test_reproducible_with_same_seed(self):
         p1 = generate_problem("legendre", random.Random(99))
@@ -992,6 +992,7 @@ class TestAliasesAndPackageExports(unittest.TestCase):
         self.assertTrue(foxmath.solovay_strassen(17))
         self.assertEqual(foxmath.fermat_factor(5959), (59, 101, 2))
         self.assertTrue(callable(foxmath.pollard_pm1))
+        self.assertTrue(callable(foxmath.lenstra_ecm))
 
 
 class TestPollardPm1(unittest.TestCase):
@@ -1034,6 +1035,49 @@ class TestPollardPm1(unittest.TestCase):
         prob = generate_problem("pm1", rng)
         self.assertEqual(prob["topic"], "pm1")
         self.assertIn("p - 1 is smooth", prob["question"])
+        self.assertGreater(prob["answer"], 1)
+
+
+class TestLenstraEcm(unittest.TestCase):
+    def test_stage_1_success(self):
+        # 1009 * 1381 = 1393429
+        res = lenstra_ecm(1393429, b1=50, max_curves=20, seed=42)
+        self.assertTrue(res["success"])
+        self.assertIn(res["factor"], (1009, 1381))
+        self.assertEqual(res["factor"] * res["cofactor"], 1393429)
+
+    def test_composite_stage2(self):
+        # 701 * 1487 = 1042387
+        res = lenstra_ecm(1042387, b1=30, b2=200, max_curves=20, seed=42)
+        self.assertTrue(res["success"])
+        self.assertIn(res["factor"], (701, 1487))
+        self.assertEqual(res["factor"] * res["cofactor"], 1042387)
+
+    def test_prime_input(self):
+        res = lenstra_ecm(1009, b1=100)
+        self.assertFalse(res["success"])
+        self.assertIsNone(res["factor"])
+        self.assertIn("already prime", res["message"])
+
+    def test_even_input(self):
+        res = lenstra_ecm(2048, b1=100)
+        self.assertTrue(res["success"])
+        self.assertEqual(res["factor"], 2)
+        self.assertEqual(res["cofactor"], 1024)
+
+    def test_invalid_bounds(self):
+        with self.assertRaises(ValueError):
+            lenstra_ecm(1393429, b1=1)
+        with self.assertRaises(ValueError):
+            lenstra_ecm(1393429, b1=50, b2=20)
+        with self.assertRaises(ValueError):
+            lenstra_ecm(1)
+
+    def test_challenge_ecm(self):
+        rng = random.Random(42)
+        prob = generate_problem("ecm", rng)
+        self.assertEqual(prob["topic"], "ecm")
+        self.assertIn("elliptic curve", prob["question"])
         self.assertGreater(prob["answer"], 1)
 
 

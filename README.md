@@ -1,6 +1,6 @@
 # FoxMath 🦊
 
-**Minimalist CLI & library for number theory and cryptography: Two-stage Pollard's p-1 factoring, Lucas-Lehmer Mersenne primality test & perfect numbers, Fermat's difference of squares, RSA & Diffie-Hellman cryptosystems, BSGS discrete log solver, arithmetic functions (μ, σ, τ), Jacobi symbol & Solovay–Strassen test, Pollard's ρ factorization, totient & Carmichael functions, Tonelli-Shanks roots, interactive REPL, Weierstrass elliptic curves, Chinese Remainder Theorem, and continued fractions.**
+**Minimalist CLI & library for number theory and cryptography: Lenstra's ECM elliptic curve factorization, Two-stage Pollard's p-1 factoring, Lucas-Lehmer Mersenne primality test & perfect numbers, Fermat's difference of squares, RSA & Diffie-Hellman cryptosystems, BSGS discrete log solver, arithmetic functions (μ, σ, τ), Jacobi symbol & Solovay–Strassen test, Pollard's ρ factorization, totient & Carmichael functions, Tonelli-Shanks roots, interactive REPL, Weierstrass elliptic curves, Chinese Remainder Theorem, and continued fractions.**
 
 **More about me / other projects:** [abhrankan.duckdns.org](https://abhrankan.duckdns.org)
 
@@ -9,6 +9,7 @@ One binary. Clean output. Zero footguns. Educational by design.
 Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
 
 ## Features
+- Lenstra's elliptic curve factorization (ECM): multi-curve two-stage factoring with Weierstrass curves and SplitMix64 PRNG (ecm)
 - Two-stage Pollard's p-1 integer factorization: Stage 1 prime-power exponentiation with automatic prime backtracking and Stage 2 prime difference table (pm1)
 - Lucas–Lehmer deterministic primality test for Mersenne numbers M_p = 2^p - 1 and prime exponent search (mersenne)
 - Euclid–Euler perfect number generator and test: 2^(p-1) * (2^p - 1) (perfect)
@@ -36,8 +37,8 @@ Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
 - Chinese Remainder Theorem solver (handles non-coprime moduli)
 - Continued fraction expansion and convergents
 - Challenge/quiz mode — practice problems with scoring, or a
-  worksheet mode for self-study (Legendre, Jacobi, CRT, SqrtMod, Factor, Totient, DLog, RSA, DH, Mersenne, Perfect, PM1)
-- Symlink-friendly (foxmath-pm1, foxmath-mersenne, foxmath-perfect, foxmath-fermat, foxmath-rsa, foxmath-dh,
+  worksheet mode for self-study (Legendre, Jacobi, CRT, SqrtMod, Factor, Totient, DLog, RSA, DH, Mersenne, Perfect, PM1, ECM)
+- Symlink-friendly (foxmath-ecm, foxmath-pm1, foxmath-mersenne, foxmath-perfect, foxmath-fermat, foxmath-rsa, foxmath-dh,
   foxmath-legendre, foxmath-jacobi, foxmath-solovay, foxmath-repl,
   foxmath-sqrtmod, foxmath-isprime, foxmath-factor, foxmath-totient,
   foxmath-order, foxmath-dlog, foxmath-mobius, foxmath-sigma,
@@ -225,6 +226,21 @@ Bounds:       B1 = 20, B2 = 100
 p - 1:        1008 = 2^4 * 3^2 * 7
 Steps:        4
 Time:         78 µs
+```
+
+```bash
+# Lenstra's ECM elliptic curve factorization (B1=50, curves=20)
+foxmath ecm 1393429 --b1 50 --curves 20 --seed 42
+```
+```
+Factor found: p = 1009
+Cofactor:     q = 1381
+Curve index:  1 (of 1 tested)
+Stage:        1
+Bounds:       B1 = 50, B2 = 500
+Curve params: a = 237890, b = 478392
+Steps:        15
+Time:         142 µs
 ```
 
 ```bash
@@ -434,7 +450,7 @@ foxmath challenge --topic ecdlp --count 1 --seed 9 --reveal
 ```
 
 Drop `--reveal` to answer interactively instead, with scoring at the end.
-`--topic` accepts `rsa`, `dh`, `pm1`, `mersenne`, `perfect`, `legendre`, `jacobi`, `crt`, `ecdlp`, `sqrtmod`, `factor`, `totient`, `dlog`, or `mixed` (default).
+`--topic` accepts `rsa`, `dh`, `pm1`, `ecm`, `mersenne`, `perfect`, `legendre`, `jacobi`, `crt`, `ecdlp`, `sqrtmod`, `factor`, `totient`, `dlog`, or `mixed` (default).
 
 ```bash
 # JSON output

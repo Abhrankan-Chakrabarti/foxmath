@@ -1037,6 +1037,28 @@ class TestFermatCli(unittest.TestCase):
         self.assertIn("hint: p - 1 is smooth", out)
         self.assertIn("Answer:", out)
 
+    def test_ecm_cli(self):
+        code, out, err = run("ecm", "1393429", "--b1", "50", "--curves", "20", "--seed", "42")
+        self.assertEqual(code, 0)
+        self.assertIn("Factor found:", out)
+        self.assertIn("Curve index:", out)
+
+    def test_ecm_json(self):
+        code, out, err = run("ecm", "1393429", "--b1", "50", "--curves", "20", "--seed", "42", "--json")
+        self.assertEqual(code, 0)
+        import json
+        data = json.loads(out)
+        self.assertEqual(data["command"], "ecm")
+        self.assertTrue(data["success"])
+        self.assertIn(data["factor"], (1009, 1381))
+        self.assertEqual(data["factor"] * data["cofactor"], 1393429)
+
+    def test_challenge_ecm(self):
+        code, out, err = run("challenge", "--topic", "ecm", "--count", "2", "--seed", "42", "--reveal")
+        self.assertEqual(code, 0)
+        self.assertIn("hint: use Lenstra elliptic curve factorization", out)
+        self.assertIn("Answer:", out)
+
 
 
 if __name__ == "__main__":

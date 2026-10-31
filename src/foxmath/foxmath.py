@@ -557,6 +557,264 @@ def pollard_pm1(
         "elapsed_us": elapsed_us,
     }
 
+def lenstra_ecm(
+    n: int,
+    b1: int = 1000,
+    b2: int | None = None,
+    max_curves: int = 20,
+    seed: int = 42,
+) -> dict:
+    """Factor an integer n using Lenstra's Elliptic Curve Method (ECM).
+
+    Tests random elliptic curves with two-stage smoothness bounds (B1, B2).
+    Returns a dict with factor, cofactor, stage, curve details, and steps.
+    """
+    if isinstance(n, str):
+        data = n.strip()
+        if data.startswith(("0x", "0X")):
+            n = int(data, 16)
+        else:
+            n = int(data)
+
+    if not isinstance(n, int):
+        raise TypeError("n must be an integer")
+    if n < 2:
+        raise ValueError("n must be an integer >= 2")
+
+    if not isinstance(b1, int) or b1 < 2:
+        raise ValueError("b1 must be an integer >= 2")
+
+    if b2 is None:
+        b2 = b1 * 10
+    elif not isinstance(b2, int) or b2 < b1:
+        raise ValueError(f"b2 must be an integer >= b1 ({b1})")
+
+    if not isinstance(max_curves, int) or max_curves < 1:
+        raise ValueError("max_curves must be an integer >= 1")
+
+    start_time = time.perf_counter()
+
+    if n % 2 == 0:
+        elapsed_us = int((time.perf_counter() - start_time) * 1_000_000)
+        return {
+            "n": n,
+            "factor": 2,
+            "cofactor": n // 2,
+            "success": True,
+            "curve_index": 0,
+            "curves_tested": 0,
+            "stage": 0,
+            "b1": b1,
+            "b2": b2,
+            "a": None,
+            "b": None,
+            "steps": 0,
+            "message": "n is even; factor 2 found immediately",
+            "elapsed_us": elapsed_us,
+        }
+
+    if is_prime(n):
+        elapsed_us = int((time.perf_counter() - start_time) * 1_000_000)
+        return {
+            "n": n,
+            "factor": None,
+            "cofactor": None,
+            "success": False,
+            "curve_index": 0,
+            "curves_tested": 0,
+            "stage": None,
+            "b1": b1,
+            "b2": b2,
+            "a": None,
+            "b": None,
+            "steps": 0,
+            "message": f"n = {n} is already prime",
+            "elapsed_us": elapsed_us,
+        }
+
+    def primes_up_to(limit: int) -> list:
+        s = [True] * (limit + 1)
+        s[0] = s[1] = False
+        for p in range(2, int(limit**0.5) + 1):
+            if s[p]:
+                for i in range(p * p, limit + 1, p):
+                    s[i] = False
+        return [i for i, v in enumerate(s) if v]
+
+    all_primes = primes_up_to(b2)
+    s1_primes = [p for p in all_primes if p <= b1]
+    s2_primes = [p for p in all_primes if p > b1]
+
+    state = seed & 0xFFFFFFFFFFFFFFFF if seed != 0 else 0x853C49E6748FEA9B
+
+    def next_u64() -> int:
+        nonlocal state
+        state = (state + 0x9E3779B97F4A7C15) & 0xFFFFFFFFFFFFFFFF
+        z = state
+        z = ((z ^ (z >> 30)) * 0xBF58476D1CE4E5B9) & 0xFFFFFFFFFFFFFFFF
+        z = ((z ^ (z >> 27)) * 0x94D049BB133111EB) & 0xFFFFFFFFFFFFFFFF
+        return (z ^ (z >> 31)) & 0xFFFFFFFFFFFFFFFF
+
+    def gen_range(low: int, high: int) -> int:
+        if low >= high:
+            return low
+        span = high - low + 1
+        return low + (next_u64() % span)
+
+    def ec_add(P, Q, a_val, mod_n):
+        if P is None:
+            return 1, Q
+        if Q is None:
+            return 1, P
+        x1, y1 = P
+        x2, y2 = Q
+        if x1 == x2:
+            if (y1 + y2) % mod_n == 0:
+                return 1, None
+            den = (2 * y1) % mod_n
+            g, x_inv, _ = extended_gcd(den, mod_n)
+            if 1 < g < mod_n:
+                return g, None
+            if g == mod_n:
+                return 1, None
+            lam = ((3 * x1 * x1 + a_val) * (x_inv % mod_n)) % mod_n
+        else:
+            den = (x2 - x1) % mod_n
+            g, x_inv, _ = extended_gcd(den, mod_n)
+            if 1 < g < mod_n:
+                return g, None
+            if g == mod_n:
+                return 1, None
+            lam = ((y2 - y1) * (x_inv % mod_n)) % mod_n
+        x3 = (lam * lam - x1 - x2) % mod_n
+        y3 = (lam * (x1 - x3) - y1) % mod_n
+        return 1, (x3, y3)
+
+    def ec_mul(k_val, pt, a_val, mod_n):
+        R = None
+        curr_Q = pt
+        while k_val > 0:
+            if k_val & 1:
+                factor_or_one, R = ec_add(R, curr_Q, a_val, mod_n)
+                if 1 < factor_or_one < mod_n:
+                    return factor_or_one, None
+            k_val >>= 1
+            if k_val > 0:
+                factor_or_one, curr_Q = ec_add(curr_Q, curr_Q, a_val, mod_n)
+                if 1 < factor_or_one < mod_n:
+                    return factor_or_one, None
+        return 1, R
+
+    total_steps = 0
+
+    for curve_idx in range(1, max_curves + 1):
+        x0 = gen_range(1, n - 1)
+        y0 = gen_range(1, n - 1)
+        a_param = gen_range(0, n - 1)
+        b_param = (y0 * y0 - x0 * x0 * x0 - a_param * x0) % n
+
+        disc = (4 * a_param * a_param * a_param + 27 * b_param * b_param) % n
+        g = gcd(disc, n)
+        if 1 < g < n:
+            p = min(g, n // g)
+            elapsed_us = int((time.perf_counter() - start_time) * 1_000_000)
+            return {
+                "n": n,
+                "factor": p,
+                "cofactor": n // p,
+                "success": True,
+                "curve_index": curve_idx,
+                "curves_tested": curve_idx,
+                "stage": 0,
+                "b1": b1,
+                "b2": b2,
+                "a": a_param,
+                "b": b_param,
+                "steps": total_steps,
+                "message": f"Discriminant of curve {curve_idx} shares non-trivial factor {p} with n",
+                "elapsed_us": elapsed_us,
+            }
+        if g == n:
+            continue
+
+        pt = (x0, y0)
+
+        # Stage 1
+        for q in s1_primes:
+            total_steps += 1
+            pk = q
+            while pk * q <= b1:
+                pk *= q
+
+            if pt is not None:
+                factor_or_one, pt = ec_mul(pk, pt, a_param, n)
+                if 1 < factor_or_one < n:
+                    p = min(factor_or_one, n // factor_or_one)
+                    elapsed_us = int((time.perf_counter() - start_time) * 1_000_000)
+                    return {
+                        "n": n,
+                        "factor": p,
+                        "cofactor": n // p,
+                        "success": True,
+                        "curve_index": curve_idx,
+                        "curves_tested": curve_idx,
+                        "stage": 1,
+                        "b1": b1,
+                        "b2": b2,
+                        "a": a_param,
+                        "b": b_param,
+                        "steps": total_steps,
+                        "message": f"Found non-trivial factor p = {p} on curve {curve_idx} in Stage 1 at prime {q}",
+                        "elapsed_us": elapsed_us,
+                    }
+                if pt is None:
+                    break
+            else:
+                break
+
+        # Stage 2
+        if pt is not None and s2_primes:
+            for q in s2_primes:
+                total_steps += 1
+                factor_or_one, _ = ec_mul(q, pt, a_param, n)
+                if 1 < factor_or_one < n:
+                    p = min(factor_or_one, n // factor_or_one)
+                    elapsed_us = int((time.perf_counter() - start_time) * 1_000_000)
+                    return {
+                        "n": n,
+                        "factor": p,
+                        "cofactor": n // p,
+                        "success": True,
+                        "curve_index": curve_idx,
+                        "curves_tested": curve_idx,
+                        "stage": 2,
+                        "b1": b1,
+                        "b2": b2,
+                        "a": a_param,
+                        "b": b_param,
+                        "steps": total_steps,
+                        "message": f"Found non-trivial factor p = {p} on curve {curve_idx} in Stage 2 at prime {q}",
+                        "elapsed_us": elapsed_us,
+                    }
+
+    elapsed_us = int((time.perf_counter() - start_time) * 1_000_000)
+    return {
+        "n": n,
+        "factor": None,
+        "cofactor": None,
+        "success": False,
+        "curve_index": max_curves,
+        "curves_tested": max_curves,
+        "stage": None,
+        "b1": b1,
+        "b2": b2,
+        "a": None,
+        "b": None,
+        "steps": total_steps,
+        "message": f"No non-trivial factor found across {max_curves} curves with B1 = {b1}, B2 = {b2}. Try increasing curves or bounds.",
+        "elapsed_us": elapsed_us,
+    }
+
 def euler_phi(n: int) -> int:
     """Euler's totient function phi(n). Counts positive integers <= n coprime to n."""
     if not isinstance(n, int):
@@ -1566,6 +1824,18 @@ def _generate_pm1_problem(rng: random.Random) -> dict:
         "answer": min(p, q),
     }
 
+def _generate_ecm_problem(rng: random.Random) -> dict:
+    primes_p = [43, 47, 53, 59, 61, 67, 71, 79, 83, 89, 97, 101, 103, 107, 109, 113]
+    primes_q = [127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181, 191, 193, 197, 199]
+    p = rng.choice(primes_p)
+    q = rng.choice(primes_q)
+    n = p * q
+    return {
+        "topic": "ecm",
+        "question": f"Smallest prime factor of composite n = {n} (hint: use Lenstra elliptic curve factorization)",
+        "answer": min(p, q),
+    }
+
 _TOPIC_GENERATORS = {
     "legendre": _generate_legendre_problem,
     "crt": _generate_crt_problem,
@@ -1580,6 +1850,7 @@ _TOPIC_GENERATORS = {
     "mersenne": _generate_mersenne_problem,
     "perfect": _generate_perfect_problem,
     "pm1": _generate_pm1_problem,
+    "ecm": _generate_ecm_problem,
 }
 
 def generate_problem(topic: str, rng: random.Random) -> dict:
@@ -1656,6 +1927,10 @@ def cmd_repl() -> None:
         "dh_keygen": dh_keygen,
         "dh_derive": dh_derive,
         "dh_crack": dh_crack,
+        "pollard_pm1": pollard_pm1,
+        "pm1": pollard_pm1,
+        "lenstra_ecm": lenstra_ecm,
+        "ecm": lenstra_ecm,
     }
     code.interact(banner="", local=namespace, exitmsg="")
 
@@ -1898,12 +2173,20 @@ def main():
     pm1_cmd.add_argument("--b2", type=int, default=None, help="Stage 2 smoothness bound (default: b1 * 10)")
     pm1_cmd.add_argument("-a", "--base", type=int, default=2, help="Base a (default: 2)")
 
+    # Lenstra's ECM
+    ecm_cmd = subparsers.add_parser("ecm", help="Lenstra's elliptic curve factorization (ECM)")
+    ecm_cmd.add_argument("n", type=int, help="Integer to factor (n >= 2)")
+    ecm_cmd.add_argument("--b1", type=int, default=1000, help="Stage 1 smoothness bound (default: 1000)")
+    ecm_cmd.add_argument("--b2", type=int, default=None, help="Stage 2 smoothness bound (default: b1 * 10)")
+    ecm_cmd.add_argument("--curves", type=int, default=20, help="Maximum curves to test (default: 20)")
+    ecm_cmd.add_argument("--seed", type=int, default=42, help="Random seed for reproducible curve generation (default: 42)")
+
     # Interactive REPL
     subparsers.add_parser("repl", help="Interactive FoxMath REPL")
 
     # Challenge / quiz mode
-    challenge = subparsers.add_parser("challenge", help="Practice problems (Legendre, Jacobi, CRT, SqrtMod, Factor, Totient, DLog, RSA, DH, Mersenne, Perfect, PM1)")
-    challenge.add_argument("--topic", choices=["legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "dlog", "jacobi", "rsa", "dh", "mersenne", "perfect", "pm1", "mixed"], default="mixed")
+    challenge = subparsers.add_parser("challenge", help="Practice problems (Legendre, Jacobi, CRT, SqrtMod, Factor, Totient, DLog, RSA, DH, Mersenne, Perfect, PM1, ECM)")
+    challenge.add_argument("--topic", choices=["legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "dlog", "jacobi", "rsa", "dh", "mersenne", "perfect", "pm1", "ecm", "mixed"], default="mixed")
     challenge.add_argument("--count", type=int, default=5, help="Number of problems")
     challenge.add_argument("--seed", type=int, help="Random seed for reproducible problem sets")
     challenge.add_argument("--reveal", action="store_true",
@@ -2366,6 +2649,23 @@ def main():
                     print(f"Stage:        {res['stage']}")
                     print(f"Bounds:       B1 = {res['b1']}, B2 = {res['b2']}")
                     print(f"p - 1:        {res['p_minus_1']} = {res['p_minus_1_expression']}")
+                    print(f"Steps:        {res['steps']}")
+                    print(f"Time:         {res['elapsed_us']} µs")
+                else:
+                    print(res["message"])
+
+        elif cmd == "ecm" or args.command == "ecm":
+            res = lenstra_ecm(args.n, b1=args.b1, b2=args.b2, max_curves=args.curves, seed=args.seed)
+            result.update({"command": "ecm", **res})
+            if not json_output:
+                if res["success"]:
+                    print(f"Factor found: p = {res['factor']}")
+                    print(f"Cofactor:     q = {res['cofactor']}")
+                    print(f"Curve index:  {res['curve_index']} (of {res['curves_tested']} tested)")
+                    print(f"Stage:        {res['stage']}")
+                    print(f"Bounds:       B1 = {res['b1']}, B2 = {res['b2']}")
+                    if res["a"] is not None:
+                        print(f"Curve params: a = {res['a']}, b = {res['b']}")
                     print(f"Steps:        {res['steps']}")
                     print(f"Time:         {res['elapsed_us']} µs")
                 else:
