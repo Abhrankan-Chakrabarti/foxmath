@@ -1058,6 +1058,334 @@ def dixon_factor(
         "elapsed_us": elapsed_us,
     }
 
+def qs_factor(n: int, b: int = 60, m: int = 3000) -> dict:
+    """Quadratic Sieve (QS) integer factorization.
+
+    Factors composite n by constructing polynomial Q(x) = (x + m)^2 - n,
+    sieving across interval [-M, M] using logarithms of factor base primes,
+    and solving GF(2) linear relations to yield congruent squares X^2 = Y^2 (mod n).
+    """
+    if not isinstance(n, int) or n < 2:
+        raise ValueError("n must be an integer >= 2")
+
+    start_time = time.perf_counter()
+
+    if n % 2 == 0:
+        elapsed_us = int((time.perf_counter() - start_time) * 1_000_000)
+        return {
+            "n": n,
+            "factor": 2,
+            "cofactor": n // 2,
+            "success": True,
+            "b": b,
+            "m": m,
+            "factor_base_size": 1,
+            "relations_needed": 1,
+            "relations_found": 1,
+            "x": None,
+            "y": None,
+            "congruence": None,
+            "candidates_checked": 0,
+            "message": "n is even; factor 2 found immediately",
+            "elapsed_us": elapsed_us,
+        }
+
+    root = isqrt(n)
+    if root * root == n:
+        elapsed_us = int((time.perf_counter() - start_time) * 1_000_000)
+        return {
+            "n": n,
+            "factor": root,
+            "cofactor": root,
+            "success": True,
+            "b": b,
+            "m": m,
+            "factor_base_size": 1,
+            "relations_needed": 1,
+            "relations_found": 1,
+            "x": root,
+            "y": 0,
+            "congruence": f"{root}² ≡ 0² (mod {n})",
+            "candidates_checked": 0,
+            "message": f"n = {n} is a perfect square: {root}²",
+            "elapsed_us": elapsed_us,
+        }
+
+    if is_prime(n):
+        elapsed_us = int((time.perf_counter() - start_time) * 1_000_000)
+        return {
+            "n": n,
+            "factor": None,
+            "cofactor": None,
+            "success": False,
+            "b": b,
+            "m": m,
+            "factor_base_size": 0,
+            "relations_needed": 0,
+            "relations_found": 0,
+            "x": None,
+            "y": None,
+            "congruence": None,
+            "candidates_checked": 0,
+            "message": f"n = {n} is already prime",
+            "elapsed_us": elapsed_us,
+        }
+
+    b = max(10, min(b, 5000))
+    m = max(100, min(m, 100_000))
+
+    # Factor base: [-1, 2] + odd primes p <= b with (n/p) == 1
+    def primes_up_to(limit: int) -> list:
+        s = [True] * (limit + 1)
+        s[0] = s[1] = False
+        for p in range(2, int(limit**0.5) + 1):
+            if s[p]:
+                for i in range(p * p, limit + 1, p):
+                    s[i] = False
+        return [i for i, v in enumerate(s) if v]
+
+    fb = [-1, 2]
+    for p in primes_up_to(b):
+        if p > 2 and legendre_symbol(n % p, p) == 1:
+            fb.append(p)
+
+    k = len(fb)
+    relations_needed = k + 10
+    poly_m = root
+    arr_len = 2 * m + 1
+
+    # Sieve array initialized with log2 |Q(x)|
+    logs = [0.0] * arr_len
+    for i in range(arr_len):
+        x = i - m
+        val = abs((x + poly_m) ** 2 - n)
+        logs[i] = math.log2(val) if val > 1 else 0.0
+
+    # Sieve subtraction for each prime in fb (skip -1)
+    for idx in range(1, k):
+        p = fb[idx]
+        p_log = math.log2(p)
+        if p == 2:
+            roots = [(1 - poly_m) % 2]
+        else:
+            try:
+                roots = list(set(r % p for r in sqrt_mod(n % p, p)))
+                roots = [(r - poly_m) % p for r in roots]
+            except Exception:
+                roots = []
+
+        for r in roots:
+            i_start = (r + m) % p
+            for i in range(i_start, arr_len, p):
+                logs[i] -= p_log
+
+    threshold = math.log2(b) * 1.8
+    relations = []
+    candidates_checked = 0
+
+    for i in range(arr_len):
+        if logs[i] <= threshold:
+            candidates_checked += 1
+            x = i - m
+            x_val = x + poly_m
+            qx = x_val * x_val - n
+
+            temp = qx
+            exps = [0] * k
+            if temp < 0:
+                exps[0] = 1
+                temp = -temp
+
+            for idx in range(1, k):
+                p = fb[idx]
+                while temp > 0 and temp % p == 0:
+                    exps[idx] += 1
+                    temp //= p
+
+            if temp == 1:
+                relations.append((x_val, qx, exps, [e % 2 for e in exps]))
+                if len(relations) >= relations_needed:
+                    break
+
+    relations_found = len(relations)
+    if relations_found <= k:
+        elapsed_us = int((time.perf_counter() - start_time) * 1_000_000)
+        return {
+            "n": n,
+            "factor": None,
+            "cofactor": None,
+            "success": False,
+            "b": b,
+            "m": m,
+            "factor_base_size": k,
+            "relations_needed": relations_needed,
+            "relations_found": relations_found,
+            "x": None,
+            "y": None,
+            "congruence": None,
+            "candidates_checked": candidates_checked,
+            "message": f"Insufficient smooth relations found (found {relations_found} of {relations_needed} needed with B = {b}, M = {m}). Try increasing B or M.",
+            "elapsed_us": elapsed_us,
+        }
+
+    # Gaussian elimination over GF(2)
+    num_rels = len(relations)
+    matrix = [list(r[3]) for r in relations]
+    tracking = [[1 if i == j else 0 for j in range(num_rels)] for i in range(num_rels)]
+    is_pivot = [False] * num_rels
+
+    for col in range(k):
+        found = None
+        for r in range(num_rels):
+            if not is_pivot[r] and matrix[r][col] == 1:
+                found = r
+                break
+        if found is not None:
+            is_pivot[found] = True
+            pivot_row = list(matrix[found])
+            pivot_track = list(tracking[found])
+            for r in range(num_rels):
+                if r != found and matrix[r][col] == 1:
+                    matrix[r] = [a ^ b for a, b in zip(matrix[r], pivot_row)]
+                    tracking[r] = [a ^ b for a, b in zip(tracking[r], pivot_track)]
+
+    null_rows = [r for r in range(num_rels) if all(v == 0 for v in matrix[r])]
+
+    # Check single null rows
+    for r in null_rows:
+        subset = [i for i, bit in enumerate(tracking[r]) if bit == 1]
+        if not subset:
+            continue
+
+        x_prod = 1
+        for idx in subset:
+            x_prod = (x_prod * relations[idx][0]) % n
+
+        total_exp = [0] * k
+        for idx in subset:
+            for j in range(k):
+                total_exp[j] += relations[idx][2][j]
+
+        if total_exp[0] % 2 != 0:
+            continue
+
+        y_prod = 1
+        all_even = True
+        for j in range(1, k):
+            if total_exp[j] % 2 != 0:
+                all_even = False
+                break
+            y_prod = (y_prod * pow(fb[j], total_exp[j] // 2, n)) % n
+
+        if not all_even:
+            continue
+
+        x_val = x_prod
+        y_val = y_prod
+
+        for diff in [abs(x_val - y_val), x_val + y_val]:
+            g = gcd(diff, n)
+            if 1 < g < n:
+                p = min(g, n // g)
+                q = n // p
+                elapsed_us = int((time.perf_counter() - start_time) * 1_000_000)
+                return {
+                    "n": n,
+                    "factor": p,
+                    "cofactor": q,
+                    "success": True,
+                    "b": b,
+                    "m": m,
+                    "factor_base_size": k,
+                    "relations_needed": relations_needed,
+                    "relations_found": relations_found,
+                    "x": x_val,
+                    "y": y_val,
+                    "congruence": f"{x_val}² ≡ {y_val}² (mod {n})",
+                    "candidates_checked": candidates_checked,
+                    "message": f"Found factor p = {p} via quadratic sieve congruence {x_val}² ≡ {y_val}² (mod {n})",
+                    "elapsed_us": elapsed_us,
+                }
+
+    # Try linear combinations of null-space pairs if single rows yielded trivial factors
+    for i in range(len(null_rows)):
+        for j in range(i + 1, len(null_rows)):
+            r_i = null_rows[i]
+            r_j = null_rows[j]
+            comb = [a ^ b for a, b in zip(tracking[r_i], tracking[r_j])]
+            subset = [idx for idx, bit in enumerate(comb) if bit == 1]
+            if not subset:
+                continue
+
+            x_prod = 1
+            for idx in subset:
+                x_prod = (x_prod * relations[idx][0]) % n
+
+            total_exp = [0] * k
+            for idx in subset:
+                for col in range(k):
+                    total_exp[col] += relations[idx][2][col]
+
+            if total_exp[0] % 2 != 0:
+                continue
+
+            y_prod = 1
+            all_even = True
+            for col in range(1, k):
+                if total_exp[col] % 2 != 0:
+                    all_even = False
+                    break
+                y_prod = (y_prod * pow(fb[col], total_exp[col] // 2, n)) % n
+
+            if not all_even:
+                continue
+
+            x_val = x_prod
+            y_val = y_prod
+
+            for diff in [abs(x_val - y_val), x_val + y_val]:
+                g = gcd(diff, n)
+                if 1 < g < n:
+                    p = min(g, n // g)
+                    q = n // p
+                    elapsed_us = int((time.perf_counter() - start_time) * 1_000_000)
+                    return {
+                        "n": n,
+                        "factor": p,
+                        "cofactor": q,
+                        "success": True,
+                        "b": b,
+                        "m": m,
+                        "factor_base_size": k,
+                        "relations_needed": relations_needed,
+                        "relations_found": relations_found,
+                        "x": x_val,
+                        "y": y_val,
+                        "congruence": f"{x_val}² ≡ {y_val}² (mod {n})",
+                        "candidates_checked": candidates_checked,
+                        "message": f"Found factor p = {p} via quadratic sieve combined congruence {x_val}² ≡ {y_val}² (mod {n})",
+                        "elapsed_us": elapsed_us,
+                    }
+
+    elapsed_us = int((time.perf_counter() - start_time) * 1_000_000)
+    return {
+        "n": n,
+        "factor": None,
+        "cofactor": None,
+        "success": False,
+        "b": b,
+        "m": m,
+        "factor_base_size": k,
+        "relations_needed": relations_needed,
+        "relations_found": relations_found,
+        "x": None,
+        "y": None,
+        "congruence": None,
+        "candidates_checked": candidates_checked,
+        "message": f"Collected {relations_found} smooth relations with B = {b}, M = {m}, but null-space congruences yielded trivial factors. Try increasing B or M.",
+        "elapsed_us": elapsed_us,
+    }
+
 def euler_phi(n: int) -> int:
     """Euler's totient function phi(n). Counts positive integers <= n coprime to n."""
     if not isinstance(n, int):
@@ -2091,6 +2419,18 @@ def _generate_dixon_problem(rng: random.Random) -> dict:
         "answer": min(p, q),
     }
 
+def _generate_qs_problem(rng: random.Random) -> dict:
+    primes_p = [31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79]
+    primes_q = [83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139]
+    p = rng.choice(primes_p)
+    q = rng.choice(primes_q)
+    n = p * q
+    return {
+        "topic": "qs",
+        "question": f"Smallest prime factor of composite n = {n} (hint: use the Quadratic Sieve algorithm)",
+        "answer": min(p, q),
+    }
+
 _TOPIC_GENERATORS = {
     "legendre": _generate_legendre_problem,
     "crt": _generate_crt_problem,
@@ -2107,6 +2447,7 @@ _TOPIC_GENERATORS = {
     "pm1": _generate_pm1_problem,
     "ecm": _generate_ecm_problem,
     "dixon": _generate_dixon_problem,
+    "qs": _generate_qs_problem,
 }
 
 def generate_problem(topic: str, rng: random.Random) -> dict:
@@ -2189,6 +2530,8 @@ def cmd_repl() -> None:
         "ecm": lenstra_ecm,
         "dixon_factor": dixon_factor,
         "dixon": dixon_factor,
+        "qs_factor": qs_factor,
+        "qs": qs_factor,
     }
     code.interact(banner="", local=namespace, exitmsg="")
 
@@ -2445,12 +2788,18 @@ def main():
     dixon_cmd.add_argument("--b", type=int, default=50, help="Factor base smoothness bound (default: 50)")
     dixon_cmd.add_argument("--max-steps", type=int, default=50000, help="Maximum search steps (default: 50000)")
 
+    # Quadratic Sieve
+    qs_cmd = subparsers.add_parser("qs", help="Quadratic Sieve (QS) integer factorization")
+    qs_cmd.add_argument("n", type=int, help="Integer to factor (n >= 2)")
+    qs_cmd.add_argument("--b", type=int, default=60, help="Factor base smoothness bound (default: 60)")
+    qs_cmd.add_argument("--m", type=int, default=3000, help="Sieve radius M defining [-M, M] (default: 3000)")
+
     # Interactive REPL
     subparsers.add_parser("repl", help="Interactive FoxMath REPL")
 
     # Challenge / quiz mode
-    challenge = subparsers.add_parser("challenge", help="Practice problems (Legendre, Jacobi, CRT, SqrtMod, Factor, Totient, DLog, RSA, DH, Mersenne, Perfect, PM1, ECM, Dixon)")
-    challenge.add_argument("--topic", choices=["legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "dlog", "jacobi", "rsa", "dh", "mersenne", "perfect", "pm1", "ecm", "dixon", "mixed"], default="mixed")
+    challenge = subparsers.add_parser("challenge", help="Practice problems (Legendre, Jacobi, CRT, SqrtMod, Factor, Totient, DLog, RSA, DH, Mersenne, Perfect, PM1, ECM, Dixon, QS)")
+    challenge.add_argument("--topic", choices=["legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "dlog", "jacobi", "rsa", "dh", "mersenne", "perfect", "pm1", "ecm", "dixon", "qs", "mixed"], default="mixed")
     challenge.add_argument("--count", type=int, default=5, help="Number of problems")
     challenge.add_argument("--seed", type=int, help="Random seed for reproducible problem sets")
     challenge.add_argument("--reveal", action="store_true",
@@ -2947,6 +3296,23 @@ def main():
                     if res["congruence"] is not None:
                         print(f"Congruence:   {res['congruence']}")
                     print(f"Steps:        {res['steps']}")
+                    print(f"Time:         {res['elapsed_us']} µs")
+                else:
+                    print(res["message"])
+
+        elif cmd == "qs" or args.command == "qs":
+            res = qs_factor(args.n, b=args.b, m=args.m)
+            result.update({"command": "qs", **res})
+            if not json_output:
+                if res["success"]:
+                    print(f"Factor found: p = {res['factor']}")
+                    print(f"Cofactor:     q = {res['cofactor']}")
+                    print(f"Bound B:      {res['b']} (Factor base size: {res['factor_base_size']})")
+                    print(f"Radius M:     {res['m']}")
+                    print(f"Relations:    {res['relations_found']} of {res['relations_needed']} needed")
+                    if res["congruence"] is not None:
+                        print(f"Congruence:   {res['congruence']}")
+                    print(f"Candidates:   {res['candidates_checked']} sieve candidates checked")
                     print(f"Time:         {res['elapsed_us']} µs")
                 else:
                     print(res["message"])

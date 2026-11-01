@@ -1,6 +1,6 @@
 # FoxMath 🦊
 
-**Minimalist CLI & library for number theory and cryptography: Dixon's random squares integer factorization, Lenstra's ECM elliptic curve factorization, Two-stage Pollard's p-1 factoring, Lucas-Lehmer Mersenne primality test & perfect numbers, Fermat's difference of squares, RSA & Diffie-Hellman cryptosystems, BSGS discrete log solver, arithmetic functions (μ, σ, τ), Jacobi symbol & Solovay–Strassen test, Pollard's ρ factorization, totient & Carmichael functions, Tonelli-Shanks roots, interactive REPL, Weierstrass elliptic curves, Chinese Remainder Theorem, and continued fractions.**
+**Minimalist CLI & library for number theory and cryptography: Quadratic Sieve (QS) integer factorization, Dixon's random squares integer factorization, Lenstra's ECM elliptic curve factorization, Two-stage Pollard's p-1 factoring, Lucas-Lehmer Mersenne primality test & perfect numbers, Fermat's difference of squares, RSA & Diffie-Hellman cryptosystems, BSGS discrete log solver, arithmetic functions (μ, σ, τ), Jacobi symbol & Solovay–Strassen test, Pollard's ρ factorization, totient & Carmichael functions, Tonelli-Shanks roots, interactive REPL, Weierstrass elliptic curves, Chinese Remainder Theorem, and continued fractions.**
 
 **More about me / other projects:** [abhrankan.duckdns.org](https://abhrankan.duckdns.org)
 
@@ -9,6 +9,7 @@ One binary. Clean output. Zero footguns. Educational by design.
 Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
 
 ## Features
+- Quadratic Sieve (QS) integer factorization: polynomial sieving over [-M, M] with Tonelli-Shanks root initialization and GF(2) linear algebra (qs)
 - Dixon's random squares integer factorization: sub-exponential integer factorization with quadratic residue factor base and GF(2) linear algebra (dixon)
 - Lenstra's elliptic curve factorization (ECM): multi-curve two-stage factoring with Weierstrass curves and SplitMix64 PRNG (ecm)
 - Two-stage Pollard's p-1 integer factorization: Stage 1 prime-power exponentiation with automatic prime backtracking and Stage 2 prime difference table (pm1)
@@ -38,8 +39,8 @@ Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
 - Chinese Remainder Theorem solver (handles non-coprime moduli)
 - Continued fraction expansion and convergents
 - Challenge/quiz mode — practice problems with scoring, or a
-  worksheet mode for self-study (Legendre, Jacobi, CRT, SqrtMod, Factor, Totient, DLog, RSA, DH, Mersenne, Perfect, PM1, ECM, Dixon)
-- Symlink-friendly (foxmath-dixon, foxmath-ecm, foxmath-pm1, foxmath-mersenne, foxmath-perfect, foxmath-fermat, foxmath-rsa, foxmath-dh,
+  worksheet mode for self-study (Legendre, Jacobi, CRT, SqrtMod, Factor, Totient, DLog, RSA, DH, Mersenne, Perfect, PM1, ECM, Dixon, QS)
+- Symlink-friendly (foxmath-qs, foxmath-dixon, foxmath-ecm, foxmath-pm1, foxmath-mersenne, foxmath-perfect, foxmath-fermat, foxmath-rsa, foxmath-dh,
   foxmath-legendre, foxmath-jacobi, foxmath-solovay, foxmath-repl,
   foxmath-sqrtmod, foxmath-isprime, foxmath-factor, foxmath-totient,
   foxmath-order, foxmath-dlog, foxmath-mobius, foxmath-sigma,
@@ -242,6 +243,21 @@ Bounds:       B1 = 50, B2 = 500
 Curve params: a = 237890, b = 478392
 Steps:        15
 Time:         142 µs
+```
+
+```bash
+# Quadratic Sieve integer factorization (B=60, M=3000)
+foxmath qs 84923 --b 60 --m 3000
+```
+```
+Factor found: p = 163
+Cofactor:     q = 521
+Bound B:      60 (Factor base size: 8)
+Radius M:     3000
+Relations:    18 of 9 needed
+Congruence:   291² ≡ 84² (mod 84923)
+Candidates:   6001 sieve candidates checked
+Time:         1620 µs
 ```
 
 ```bash
@@ -465,7 +481,7 @@ foxmath challenge --topic ecdlp --count 1 --seed 9 --reveal
 ```
 
 Drop `--reveal` to answer interactively instead, with scoring at the end.
-`--topic` accepts `rsa`, `dh`, `pm1`, `ecm`, `dixon`, `mersenne`, `perfect`, `legendre`, `jacobi`, `crt`, `ecdlp`, `sqrtmod`, `factor`, `totient`, `dlog`, or `mixed` (default).
+`--topic` accepts `rsa`, `dh`, `pm1`, `ecm`, `dixon`, `qs`, `mersenne`, `perfect`, `legendre`, `jacobi`, `crt`, `ecdlp`, `sqrtmod`, `factor`, `totient`, `dlog`, or `mixed` (default).
 
 ```bash
 # JSON output

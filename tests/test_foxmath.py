@@ -22,6 +22,7 @@ from foxmath.foxmath import (
     discrete_log, mobius, tau, sigma,
     dlog, egcd, modinv, crt,
     fermat_factor, predict_factor, to_sci, pollard_pm1, lenstra_ecm, dixon_factor,
+    qs_factor,
 )
 import random
 
@@ -735,7 +736,7 @@ class TestChallengeGenerators(unittest.TestCase):
     def test_mixed_topic_produces_all_kinds(self):
         rng = random.Random(1)
         topics = {generate_problem("mixed", rng)["topic"] for _ in range(500)}
-        self.assertEqual(topics, {"legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "dlog", "jacobi", "rsa", "dh", "mersenne", "perfect", "pm1", "ecm", "dixon"})
+        self.assertEqual(topics, {"legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "dlog", "jacobi", "rsa", "dh", "mersenne", "perfect", "pm1", "ecm", "dixon", "qs"})
 
     def test_reproducible_with_same_seed(self):
         p1 = generate_problem("legendre", random.Random(99))
@@ -994,6 +995,7 @@ class TestAliasesAndPackageExports(unittest.TestCase):
         self.assertTrue(callable(foxmath.pollard_pm1))
         self.assertTrue(callable(foxmath.lenstra_ecm))
         self.assertTrue(callable(foxmath.dixon_factor))
+        self.assertTrue(callable(foxmath.qs_factor))
 
 
 class TestPollardPm1(unittest.TestCase):
@@ -1132,6 +1134,57 @@ class TestDixonFactor(unittest.TestCase):
         prob = generate_problem("dixon", rng)
         self.assertEqual(prob["topic"], "dixon")
         self.assertIn("Dixon's random squares", prob["question"])
+        self.assertGreater(prob["answer"], 1)
+
+
+class TestQsFactor(unittest.TestCase):
+    def test_qs_success_84923(self):
+        # 163 * 521 = 84923 with B = 60, M = 3000
+        res = qs_factor(84923, b=60, m=3000)
+        self.assertTrue(res["success"])
+        self.assertIn(res["factor"], (163, 521))
+        self.assertEqual(res["factor"] * res["cofactor"], 84923)
+        self.assertIsNotNone(res["congruence"])
+
+    def test_qs_success_1042387(self):
+        # 701 * 1487 = 1042387 with B = 60, M = 3000
+        res = qs_factor(1042387, b=60, m=3000)
+        self.assertTrue(res["success"])
+        self.assertIn(res["factor"], (701, 1487))
+        self.assertEqual(res["factor"] * res["cofactor"], 1042387)
+
+    def test_qs_success_1393429(self):
+        # 1009 * 1381 = 1393429 with B = 60, M = 3000
+        res = qs_factor(1393429, b=60, m=3000)
+        self.assertTrue(res["success"])
+        self.assertIn(res["factor"], (1009, 1381))
+        self.assertEqual(res["factor"] * res["cofactor"], 1393429)
+
+    def test_perfect_square(self):
+        res = qs_factor(169)
+        self.assertTrue(res["success"])
+        self.assertEqual(res["factor"], 13)
+
+    def test_prime_input(self):
+        res = qs_factor(104729)
+        self.assertFalse(res["success"])
+        self.assertIsNone(res["factor"])
+        self.assertIn("already prime", res["message"])
+
+    def test_even_input(self):
+        res = qs_factor(1000)
+        self.assertTrue(res["success"])
+        self.assertEqual(res["factor"], 2)
+
+    def test_invalid_input(self):
+        with self.assertRaises(ValueError):
+            qs_factor(1)
+
+    def test_challenge_qs(self):
+        rng = random.Random(42)
+        prob = generate_problem("qs", rng)
+        self.assertEqual(prob["topic"], "qs")
+        self.assertIn("Quadratic Sieve", prob["question"])
         self.assertGreater(prob["answer"], 1)
 
 

@@ -1081,6 +1081,28 @@ class TestFermatCli(unittest.TestCase):
         self.assertIn("hint: use Dixon's random squares method", out)
         self.assertIn("Answer:", out)
 
+    def test_qs_cli(self):
+        code, out, err = run("qs", "84923", "--b", "60", "--m", "3000")
+        self.assertEqual(code, 0)
+        self.assertIn("Factor found:", out)
+        self.assertIn("Congruence:", out)
+
+    def test_qs_json(self):
+        code, out, err = run("qs", "84923", "--b", "60", "--m", "3000", "--json")
+        self.assertEqual(code, 0)
+        import json
+        data = json.loads(out)
+        self.assertEqual(data["command"], "qs")
+        self.assertTrue(data["success"])
+        self.assertIn(data["factor"], (163, 521))
+        self.assertEqual(data["factor"] * data["cofactor"], 84923)
+
+    def test_challenge_qs(self):
+        code, out, err = run("challenge", "--topic", "qs", "--count", "2", "--seed", "42", "--reveal")
+        self.assertEqual(code, 0)
+        self.assertIn("hint: use the Quadratic Sieve algorithm", out)
+        self.assertIn("Answer:", out)
+
 
 
 if __name__ == "__main__":

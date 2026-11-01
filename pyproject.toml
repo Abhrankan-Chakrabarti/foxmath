@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "foxmath"
-version = "0.18.0"
-description = "Minimalist CLI & library for number theory and cryptography: Dixon & Lenstra ECM factoring, Pollard p-1, Lucas-Lehmer Mersenne tests, Fermat factor, RSA & Diffie-Hellman cryptosystems, BSGS discrete log, arithmetic functions (mu, sigma, tau), Jacobi symbol, Tonelli-Shanks, elliptic curves, CRT, and continued fractions."
+version = "0.19.0"
+description = "Minimalist CLI & library for number theory and cryptography: Quadratic Sieve & Dixon factoring, Lenstra ECM, Pollard p-1, Lucas-Lehmer Mersenne tests, Fermat factor, RSA & Diffie-Hellman cryptosystems, BSGS discrete log, arithmetic functions (mu, sigma, tau), Jacobi symbol, Tonelli-Shanks, elliptic curves, CRT, and continued fractions."
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
@@ -57,3 +57,4 @@ foxmath-perfect = "foxmath.foxmath:main"
 foxmath-pm1 = "foxmath.foxmath:main"
 foxmath-ecm = "foxmath.foxmath:main"
 foxmath-dixon = "foxmath.foxmath:main"
+foxmath-qs = "foxmath.foxmath:main"
