@@ -1,6 +1,6 @@
 # FoxMath 🦊
 
-**Minimalist CLI & library for number theory and cryptography: Quadratic Sieve (QS) integer factorization, Dixon's random squares integer factorization, Lenstra's ECM elliptic curve factorization, Two-stage Pollard's p-1 factoring, Lucas-Lehmer Mersenne primality test & perfect numbers, Fermat's difference of squares, RSA & Diffie-Hellman cryptosystems, BSGS discrete log solver, arithmetic functions (μ, σ, τ), Jacobi symbol & Solovay–Strassen test, Pollard's ρ factorization, totient & Carmichael functions, Tonelli-Shanks roots, interactive REPL, Weierstrass elliptic curves, Chinese Remainder Theorem, and continued fractions.**
+**Minimalist CLI & library for number theory and cryptography: Shanks's square forms factorization (SQUFOF), Quadratic Sieve (QS) integer factorization, Dixon's random squares integer factorization, Lenstra's ECM elliptic curve factorization, Two-stage Pollard's p-1 factoring, Lucas-Lehmer Mersenne primality test & perfect numbers, Fermat's difference of squares, RSA & Diffie-Hellman cryptosystems, BSGS discrete log solver, arithmetic functions (μ, σ, τ), Jacobi symbol & Solovay–Strassen test, Pollard's ρ factorization, totient & Carmichael functions, Tonelli-Shanks roots, interactive REPL, Weierstrass elliptic curves, Chinese Remainder Theorem, and continued fractions.**
 
 **More about me / other projects:** [abhrankan.duckdns.org](https://abhrankan.duckdns.org)
 
@@ -9,6 +9,7 @@ One binary. Clean output. Zero footguns. Educational by design.
 Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
 
 ## Features
+- Shanks's square forms factorization (SQUFOF): unconditionally deterministic O(n^(1/4)) binary quadratic form factoring (squfof)
 - Quadratic Sieve (QS) integer factorization: polynomial sieving over [-M, M] with Tonelli-Shanks root initialization and GF(2) linear algebra (qs)
 - Dixon's random squares integer factorization: sub-exponential integer factorization with quadratic residue factor base and GF(2) linear algebra (dixon)
 - Lenstra's elliptic curve factorization (ECM): multi-curve two-stage factoring with Weierstrass curves and SplitMix64 PRNG (ecm)
@@ -39,8 +40,8 @@ Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
 - Chinese Remainder Theorem solver (handles non-coprime moduli)
 - Continued fraction expansion and convergents
 - Challenge/quiz mode — practice problems with scoring, or a
-  worksheet mode for self-study (Legendre, Jacobi, CRT, SqrtMod, Factor, Totient, DLog, RSA, DH, Mersenne, Perfect, PM1, ECM, Dixon, QS)
-- Symlink-friendly (foxmath-qs, foxmath-dixon, foxmath-ecm, foxmath-pm1, foxmath-mersenne, foxmath-perfect, foxmath-fermat, foxmath-rsa, foxmath-dh,
+  worksheet mode for self-study (Legendre, Jacobi, CRT, SqrtMod, Factor, Totient, DLog, RSA, DH, Mersenne, Perfect, PM1, ECM, Dixon, QS, SQUFOF)
+- Symlink-friendly (foxmath-qs, foxmath-squfof, foxmath-dixon, foxmath-ecm, foxmath-pm1, foxmath-mersenne, foxmath-perfect, foxmath-fermat, foxmath-rsa, foxmath-dh,
   foxmath-legendre, foxmath-jacobi, foxmath-solovay, foxmath-repl,
   foxmath-sqrtmod, foxmath-isprime, foxmath-factor, foxmath-totient,
   foxmath-order, foxmath-dlog, foxmath-mobius, foxmath-sigma,
@@ -258,6 +259,20 @@ Relations:    18 of 9 needed
 Congruence:   291² ≡ 84² (mod 84923)
 Candidates:   6001 sieve candidates checked
 Time:         1620 µs
+```
+
+```bash
+# Shanks's Square Forms Factorization (SQUFOF)
+foxmath squfof 84923
+```
+```
+Factor found: p = 163
+Cofactor:     q = 521
+Multiplier:   k = 1
+Cycle 1:      4 steps
+Cycle 2:      2 steps
+Square Q:     1156 (sqrt = 34)
+Time:         25 µs
 ```
 
 ```bash

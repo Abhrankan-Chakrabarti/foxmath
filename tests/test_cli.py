@@ -1103,6 +1103,48 @@ class TestFermatCli(unittest.TestCase):
         self.assertIn("hint: use the Quadratic Sieve algorithm", out)
         self.assertIn("Answer:", out)
 
+    def test_squfof_cli(self):
+        code, out, err = run("squfof", "84923", "--max-steps", "50000")
+        self.assertEqual(code, 0)
+        self.assertIn("Factor found:", out)
+        self.assertIn("Multiplier:", out)
+        self.assertIn("Cycle 1:", out)
+
+    def test_squfof_json(self):
+        code, out, err = run("squfof", "84923", "--json")
+        self.assertEqual(code, 0)
+        import json
+        data = json.loads(out)
+        self.assertEqual(data["command"], "squfof")
+        self.assertTrue(data["success"])
+        self.assertIn(data["factor"], (163, 521))
+        self.assertEqual(data["factor"] * data["cofactor"], 84923)
+
+    def test_challenge_squfof(self):
+        code, out, err = run("challenge", "--topic", "squfof", "--count", "2", "--seed", "42", "--reveal")
+        self.assertEqual(code, 0)
+        self.assertIn("hint: use Shanks's SQUFOF algorithm", out)
+        self.assertIn("Answer:", out)
+
+
+
+
+class TestReviewRegressionsCLI(unittest.TestCase):
+    def test_isprime_does_not_overclaim_above_the_exact_range(self):
+        # 3317044064679887385961981 is composite but passes all 13 Miller-Rabin bases.
+        code, out, err = run("isprime", "3317044064679887385961981")
+        self.assertEqual(code, 0)
+        self.assertIn("probably prime", out)
+
+    def test_isprime_still_plain_prime_in_the_exact_range(self):
+        code, out, err = run("isprime", "104729")
+        self.assertIn("104729 is prime", out)
+        self.assertNotIn("probably", out)
+
+    def test_perfect_number_longer_than_4300_digits_prints(self):
+        code, out, err = run("perfect", "9689", "-p")
+        self.assertEqual(code, 0, err)
+        self.assertGreater(len(out), 5000)
 
 
 if __name__ == "__main__":

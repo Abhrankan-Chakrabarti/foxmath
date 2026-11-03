@@ -1386,6 +1386,202 @@ def qs_factor(n: int, b: int = 60, m: int = 3000) -> dict:
         "elapsed_us": elapsed_us,
     }
 
+
+def squfof_factor(
+    n: int,
+    max_steps: int = 50000,
+) -> dict:
+    """Factor an integer n using Shanks's Square Forms Factorization (SQUFOF).
+
+    Operates in the infrastructure of binary quadratic forms of discriminant D = k * n.
+    In Cycle 1, reduces forms until finding a square form Q_i = r^2 at an even step.
+    In Cycle 2, starts at the square root form and descends to an ambiguous form P_0 = P_1,
+    yielding a non-trivial factor as gcd(n, P_1).
+    """
+    if isinstance(n, str):
+        data = n.strip()
+        if data.startswith(("0x", "0X")):
+            n = int(data, 16)
+        else:
+            n = int(data)
+
+    if isinstance(n, bool) or not isinstance(n, int):
+        raise TypeError("n must be an integer")
+    if n < 2:
+        raise ValueError("n must be an integer >= 2")
+
+    if isinstance(max_steps, bool) or not isinstance(max_steps, int) or max_steps < 1:
+        raise ValueError("max_steps must be an integer >= 1")
+
+    max_steps_limit = max(1, min(max_steps, 500000))
+    start_time = time.perf_counter()
+
+    if n % 2 == 0:
+        elapsed_us = int((time.perf_counter() - start_time) * 1_000_000)
+        return {
+            "n": n,
+            "factor": 2,
+            "cofactor": n // 2,
+            "success": True,
+            "multiplier": 1,
+            "cycle1_steps": 0,
+            "cycle2_steps": 0,
+            "square_q": None,
+            "sqrt_q": None,
+            "message": "n is even; factor 2 found immediately",
+            "elapsed_us": elapsed_us,
+        }
+
+    root = isqrt(n)
+    if root * root == n:
+        elapsed_us = int((time.perf_counter() - start_time) * 1_000_000)
+        return {
+            "n": n,
+            "factor": root,
+            "cofactor": root,
+            "success": True,
+            "multiplier": 1,
+            "cycle1_steps": 0,
+            "cycle2_steps": 0,
+            "square_q": None,
+            "sqrt_q": None,
+            "message": f"n = {n} is a perfect square: {root}²",
+            "elapsed_us": elapsed_us,
+        }
+
+    if is_prime(n):
+        elapsed_us = int((time.perf_counter() - start_time) * 1_000_000)
+        return {
+            "n": n,
+            "factor": None,
+            "cofactor": None,
+            "success": False,
+            "multiplier": 0,
+            "cycle1_steps": 0,
+            "cycle2_steps": 0,
+            "square_q": None,
+            "sqrt_q": None,
+            "message": f"n = {n} is already prime",
+            "elapsed_us": elapsed_us,
+        }
+
+    multipliers = [1, 3, 5, 7, 11, 15, 21, 33, 35, 55, 77, 105, 165, 231, 385, 1155]
+
+    for k in multipliers:
+        d = k * n
+        p_init = isqrt(d)
+        if p_init * p_init == d:
+            g = gcd(p_init, n)
+            if 1 < g < n:
+                p = min(g, n // g)
+                q = n // p
+                elapsed_us = int((time.perf_counter() - start_time) * 1_000_000)
+                return {
+                    "n": n,
+                    "factor": p,
+                    "cofactor": q,
+                    "success": True,
+                    "multiplier": k,
+                    "cycle1_steps": 0,
+                    "cycle2_steps": 0,
+                    "square_q": None,
+                    "sqrt_q": None,
+                    "message": f"Found factor p = {p} via square root of D = {k} * n",
+                    "elapsed_us": elapsed_us,
+                }
+            continue
+
+        p0 = p_init
+        q0 = 1
+        q1 = d - p0 * p0
+        if q1 == 0:
+            continue
+
+        l_bound = 2 * isqrt(2 * isqrt(p_init))
+        b_limit = max(3 * l_bound, max_steps_limit)
+
+        found_square = False
+        i = 1
+        p_1 = p0
+        q_2 = q1
+
+        while i <= b_limit:
+            b = (p_init + p0) // q1
+            p_1 = b * q1 - p0
+            q_2 = q0 + b * (p0 - p_1)
+
+            if q_2 == 0:
+                break
+
+            i += 1
+            if i % 2 == 0 and q_2 > 0:
+                q_sqrt = isqrt(q_2)
+                if q_sqrt * q_sqrt == q_2:
+                    found_square = True
+                    break
+
+            p0 = p_1
+            q0 = q1
+            q1 = q_2
+
+        if not found_square or q_2 <= 0:
+            continue
+
+        q_sqrt = isqrt(q_2)
+        b_0 = (p_init - p_1) // q_sqrt
+        p0 = b_0 * q_sqrt + p_1
+        q0 = q_sqrt
+        q1 = (d - p0 * p0) // q0
+
+        steps2 = 0
+        while steps2 < b_limit:
+            steps2 += 1
+            if q1 == 0:
+                break
+            b = (p_init + p0) // q1
+            p_1 = b * q1 - p0
+            q_2 = q0 + b * (p0 - p_1)
+
+            if p0 == p_1:
+                break
+            p0 = p_1
+            q0 = q1
+            q1 = q_2
+
+        g = gcd(n, p_1)
+        if 1 < g < n:
+            p = min(g, n // g)
+            q = n // p
+            elapsed_us = int((time.perf_counter() - start_time) * 1_000_000)
+            return {
+                "n": n,
+                "factor": p,
+                "cofactor": q,
+                "success": True,
+                "multiplier": k,
+                "cycle1_steps": i,
+                "cycle2_steps": steps2,
+                "square_q": q_2,
+                "sqrt_q": q_sqrt,
+                "message": f"Found non-trivial factor p = {p} via SQUFOF (multiplier k = {k}, cycle 1 = {i} steps, cycle 2 = {steps2} steps)",
+                "elapsed_us": elapsed_us,
+            }
+
+    elapsed_us = int((time.perf_counter() - start_time) * 1_000_000)
+    return {
+        "n": n,
+        "factor": None,
+        "cofactor": None,
+        "success": False,
+        "multiplier": 0,
+        "cycle1_steps": 0,
+        "cycle2_steps": 0,
+        "square_q": None,
+        "sqrt_q": None,
+        "message": f"SQUFOF failed to factor n = {n} within step limits across multipliers. Try increasing max_steps or use QS/ECM.",
+        "elapsed_us": elapsed_us,
+    }
+
 def euler_phi(n: int) -> int:
     """Euler's totient function phi(n). Counts positive integers <= n coprime to n."""
     if not isinstance(n, int):
@@ -1454,6 +1650,12 @@ def is_primitive_root(a: int, m: int) -> bool:
         return False
     return multiplicative_order(a, m) == euler_phi(m)
 
+# Baby-step giant-step keeps ~sqrt(order) table entries at roughly 100 bytes
+# each (about 860 MB measured at 2^23 entries). Cap it so a large modulus
+# fails with a clear message instead of exhausting the machine's memory.
+_BSGS_MAX_TABLE = 1 << 23
+
+
 def discrete_log(g: int, h: int, p: int) -> int:
     """Solve the discrete logarithm problem g^x ≡ h (mod p) using Baby-step Giant-step.
 
@@ -1479,6 +1681,13 @@ def discrete_log(g: int, h: int, p: int) -> int:
     m = isqrt(order)
     if m * m < order:
         m += 1
+    if m > _BSGS_MAX_TABLE:
+        raise ValueError(
+            f"Group too large for baby-step giant-step: its order is about 2^{order.bit_length()}, "
+            f"which needs a table of about 2^{m.bit_length()} entries "
+            f"(limit 2^{_BSGS_MAX_TABLE.bit_length() - 1}, roughly 1 GB of memory). "
+            "This solver is meant for teaching-size groups."
+        )
 
     # Baby steps: compute g^j mod p for j in [0, m - 1]
     table = {}
@@ -1998,6 +2207,11 @@ def rsa_keygen(bits: int = 32, e: int = 65537, seed: int = None) -> dict:
             p, q = q, p
 
         n = p * q
+        if n.bit_length() != bits:
+            # Two primes of p_bits and q_bits bits multiply to either `bits` or
+            # `bits - 1` bits (about 39% of the time the latter). Retry so the
+            # modulus is exactly the size that was asked for.
+            continue
         phi = (p - 1) * (q - 1)
         lam = phi // gcd(p - 1, q - 1)
 
@@ -2121,6 +2335,11 @@ def rsa_crack(n: int, e: int, c: int = None, method: str = "auto") -> dict:
     if p < q:
         p, q = q, p
 
+    if p == q:
+        raise ValueError(
+            f"Modulus {n} is the square of the prime {p}; RSA needs two distinct primes "
+            "(phi(p^2) = p(p-1), so the usual (p-1)(q-1) formula would give a wrong key)"
+        )
     phi = (p - 1) * (q - 1)
     lam = phi // gcd(p - 1, q - 1)
 
@@ -2431,6 +2650,18 @@ def _generate_qs_problem(rng: random.Random) -> dict:
         "answer": min(p, q),
     }
 
+def _generate_squfof_problem(rng: random.Random) -> dict:
+    primes_p = [101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163]
+    primes_q = [521, 541, 547, 557, 563, 569, 571, 577, 587, 593, 599, 601, 607]
+    p = rng.choice(primes_p)
+    q = rng.choice(primes_q)
+    n = p * q
+    return {
+        "topic": "squfof",
+        "question": f"Smallest prime factor of composite n = {n} (hint: use Shanks's SQUFOF algorithm)",
+        "answer": min(p, q),
+    }
+
 _TOPIC_GENERATORS = {
     "legendre": _generate_legendre_problem,
     "crt": _generate_crt_problem,
@@ -2448,6 +2679,7 @@ _TOPIC_GENERATORS = {
     "ecm": _generate_ecm_problem,
     "dixon": _generate_dixon_problem,
     "qs": _generate_qs_problem,
+    "squfof": _generate_squfof_problem,
 }
 
 def generate_problem(topic: str, rng: random.Random) -> dict:
@@ -2532,6 +2764,8 @@ def cmd_repl() -> None:
         "dixon": dixon_factor,
         "qs_factor": qs_factor,
         "qs": qs_factor,
+        "squfof_factor": squfof_factor,
+        "squfof": squfof_factor,
     }
     code.interact(banner="", local=namespace, exitmsg="")
 
@@ -2565,7 +2799,19 @@ def get_command():
         return name.split("-", 1)[1]
     return None
 
+# is_prime() is exact below this bound (the first composite that passes all 13
+# Miller-Rabin bases); at or above it the answer 'prime' is only probable.
+_MR_EXACT_BOUND = 3317044064679887385961981
+
+
 def main():
+    # Python 3.11+ refuses to convert integers longer than 4300 digits to
+    # strings, which breaks printing e.g. perfect numbers for p > ~7000 and
+    # Mersenne numbers for p > ~14000. The CLI only prints what the user asked
+    # it to compute, so lift the limit for CLI runs (library use is untouched).
+    if hasattr(sys, "set_int_max_str_digits"):
+        sys.set_int_max_str_digits(0)
+
     if hasattr(sys.stdout, "reconfigure"):
         try:
             sys.stdout.reconfigure(encoding="utf-8")
@@ -2794,12 +3040,17 @@ def main():
     qs_cmd.add_argument("--b", type=int, default=60, help="Factor base smoothness bound (default: 60)")
     qs_cmd.add_argument("--m", type=int, default=3000, help="Sieve radius M defining [-M, M] (default: 3000)")
 
+    # Shanks's SQUFOF
+    squfof_cmd = subparsers.add_parser("squfof", help="Shanks's square forms integer factorization (SQUFOF)")
+    squfof_cmd.add_argument("n", type=int, help="Integer to factor (n >= 2)")
+    squfof_cmd.add_argument("--max-steps", type=int, default=50000, help="Maximum reduction steps per multiplier (default: 50000)")
+
     # Interactive REPL
     subparsers.add_parser("repl", help="Interactive FoxMath REPL")
 
     # Challenge / quiz mode
-    challenge = subparsers.add_parser("challenge", help="Practice problems (Legendre, Jacobi, CRT, SqrtMod, Factor, Totient, DLog, RSA, DH, Mersenne, Perfect, PM1, ECM, Dixon, QS)")
-    challenge.add_argument("--topic", choices=["legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "dlog", "jacobi", "rsa", "dh", "mersenne", "perfect", "pm1", "ecm", "dixon", "qs", "mixed"], default="mixed")
+    challenge = subparsers.add_parser("challenge", help="Practice problems (Legendre, Jacobi, CRT, SqrtMod, Factor, Totient, DLog, RSA, DH, Mersenne, Perfect, PM1, ECM, Dixon, QS, SQUFOF)")
+    challenge.add_argument("--topic", choices=["legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "dlog", "jacobi", "rsa", "dh", "mersenne", "perfect", "pm1", "ecm", "dixon", "qs", "squfof", "mixed"], default="mixed")
     challenge.add_argument("--count", type=int, default=5, help="Number of problems")
     challenge.add_argument("--seed", type=int, help="Random seed for reproducible problem sets")
     challenge.add_argument("--reveal", action="store_true",
@@ -2833,6 +3084,8 @@ def main():
                     print(f"{args.n} is not prime")
                 else:
                     verdict = "prime" if prime else "composite"
+                    if prime and args.n >= _MR_EXACT_BOUND:
+                        verdict = "probably prime (above ~3.3e24 the primality test is no longer exact)"
                     print(f"{args.n} is {verdict}")
 
         elif cmd == "factor" or args.command == "factor":
@@ -2851,7 +3104,8 @@ def main():
             })
             if not json_output:
                 if is_p:
-                    print(f"{args.n} is prime")
+                    qualifier = "probably " if args.n >= _MR_EXACT_BOUND else ""
+                    print(f"{args.n} is {qualifier}prime")
                 elif args.n == 1:
                     print("1 has no prime factors")
                 else:
@@ -3313,6 +3567,22 @@ def main():
                     if res["congruence"] is not None:
                         print(f"Congruence:   {res['congruence']}")
                     print(f"Candidates:   {res['candidates_checked']} sieve candidates checked")
+                    print(f"Time:         {res['elapsed_us']} µs")
+                else:
+                    print(res["message"])
+
+        elif cmd == "squfof" or args.command == "squfof":
+            res = squfof_factor(args.n, max_steps=args.max_steps)
+            result.update({"command": "squfof", **res})
+            if not json_output:
+                if res["success"]:
+                    print(f"Factor found: p = {res['factor']}")
+                    print(f"Cofactor:     q = {res['cofactor']}")
+                    print(f"Multiplier:   k = {res['multiplier']}")
+                    print(f"Cycle 1:      {res['cycle1_steps']} steps")
+                    print(f"Cycle 2:      {res['cycle2_steps']} steps")
+                    if res["square_q"] is not None:
+                        print(f"Square Q:     {res['square_q']} (sqrt = {res['sqrt_q']})")
                     print(f"Time:         {res['elapsed_us']} µs")
                 else:
                     print(res["message"])

@@ -23,6 +23,7 @@ from foxmath.foxmath import (
     dlog, egcd, modinv, crt,
     fermat_factor, predict_factor, to_sci, pollard_pm1, lenstra_ecm, dixon_factor,
     qs_factor,
+    squfof_factor,
 )
 import random
 
@@ -736,7 +737,7 @@ class TestChallengeGenerators(unittest.TestCase):
     def test_mixed_topic_produces_all_kinds(self):
         rng = random.Random(1)
         topics = {generate_problem("mixed", rng)["topic"] for _ in range(500)}
-        self.assertEqual(topics, {"legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "dlog", "jacobi", "rsa", "dh", "mersenne", "perfect", "pm1", "ecm", "dixon", "qs"})
+        self.assertEqual(topics, {"legendre", "crt", "ecdlp", "sqrtmod", "factor", "totient", "dlog", "jacobi", "rsa", "dh", "mersenne", "perfect", "pm1", "ecm", "dixon", "qs", "squfof"})
 
     def test_reproducible_with_same_seed(self):
         p1 = generate_problem("legendre", random.Random(99))
@@ -996,6 +997,7 @@ class TestAliasesAndPackageExports(unittest.TestCase):
         self.assertTrue(callable(foxmath.lenstra_ecm))
         self.assertTrue(callable(foxmath.dixon_factor))
         self.assertTrue(callable(foxmath.qs_factor))
+        self.assertTrue(callable(foxmath.squfof_factor))
 
 
 class TestPollardPm1(unittest.TestCase):
@@ -1187,6 +1189,90 @@ class TestQsFactor(unittest.TestCase):
         self.assertIn("Quadratic Sieve", prob["question"])
         self.assertGreater(prob["answer"], 1)
 
+
+
+
+class TestSqufofFactor(unittest.TestCase):
+    def test_composite_numbers(self):
+        # 163 * 521 = 84923
+        res = squfof_factor(84923)
+        self.assertTrue(res["success"])
+        self.assertIn(res["factor"], (163, 521))
+        self.assertEqual(res["factor"] * res["cofactor"], 84923)
+
+        # 701 * 1487 = 1042387
+        res2 = squfof_factor(1042387)
+        self.assertTrue(res2["success"])
+        self.assertIn(res2["factor"], (701, 1487))
+        self.assertEqual(res2["factor"] * res2["cofactor"], 1042387)
+
+        # 1009 * 1381 = 1393429
+        res3 = squfof_factor(1393429)
+        self.assertTrue(res3["success"])
+        self.assertIn(res3["factor"], (1009, 1381))
+        self.assertEqual(res3["factor"] * res3["cofactor"], 1393429)
+
+        # 113 * 19573 = 2211749
+        res4 = squfof_factor(2211749)
+        self.assertTrue(res4["success"])
+        self.assertIn(res4["factor"], (113, 19573))
+        self.assertEqual(res4["factor"] * res4["cofactor"], 2211749)
+
+    def test_even_number(self):
+        res = squfof_factor(1000)
+        self.assertTrue(res["success"])
+        self.assertEqual(res["factor"], 2)
+        self.assertEqual(res["cofactor"], 500)
+
+    def test_perfect_square(self):
+        res = squfof_factor(169)
+        self.assertTrue(res["success"])
+        self.assertEqual(res["factor"], 13)
+        self.assertEqual(res["cofactor"], 13)
+
+    def test_prime_input(self):
+        res = squfof_factor(104729)
+        self.assertFalse(res["success"])
+        self.assertIsNone(res["factor"])
+        self.assertIn("already prime", res["message"])
+
+    def test_invalid_inputs(self):
+        with self.assertRaises(ValueError):
+            squfof_factor(1)
+        with self.assertRaises(ValueError):
+            squfof_factor(-42)
+        with self.assertRaises(TypeError):
+            squfof_factor(3.14)
+        with self.assertRaises(TypeError):
+            squfof_factor(True)
+        with self.assertRaises(ValueError):
+            squfof_factor(84923, max_steps=0)
+
+    def test_challenge_squfof(self):
+        prob = generate_problem("squfof", random.Random(42))
+        self.assertEqual(prob["topic"], "squfof")
+        self.assertIn("Shanks's SQUFOF", prob["question"])
+        self.assertIsInstance(prob["answer"], int)
+
+
+class TestReviewRegressions(unittest.TestCase):
+    """Bugs found by cross-checking against sympy / brute force; kept as regressions."""
+
+    def test_rsa_keygen_modulus_has_exactly_the_requested_bits(self):
+        from foxmath.foxmath import rsa_keygen
+        for bits in (8, 9, 10, 12, 16, 24, 32, 64):
+            for seed in range(40):
+                self.assertEqual(rsa_keygen(bits=bits, seed=seed)["n"].bit_length(), bits, (bits, seed))
+
+    def test_rsa_crack_rejects_a_prime_squared_modulus(self):
+        from foxmath.foxmath import rsa_crack
+        with self.assertRaisesRegex(ValueError, "square of the prime"):
+            rsa_crack(10007 * 10007, 65537)
+
+    def test_discrete_log_refuses_groups_too_big_for_the_table(self):
+        from foxmath.foxmath import discrete_log
+        with self.assertRaisesRegex(ValueError, "too large"):
+            discrete_log(3, 5, 2 ** 61 - 1)
 
 
 if __name__ == "__main__":
