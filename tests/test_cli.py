@@ -14,9 +14,13 @@ SCRIPT = os.path.join(ROOT, "foxmath.py")
 
 
 def run(*args, script=SCRIPT, stdin_input=None):
+    # Never inherit the caller's stdin. A terminal, /dev/null and an idle pipe (CI)
+    # make commands that look at stdin behave differently, so tests that don't
+    # pass stdin_input get an explicit empty, closed stdin.
+    stdin_kwargs = {"input": stdin_input} if stdin_input is not None else {"stdin": subprocess.DEVNULL}
     result = subprocess.run(
         [sys.executable, script, *args],
-        capture_output=True, text=True, encoding="utf-8", timeout=15, input=stdin_input,
+        capture_output=True, text=True, encoding="utf-8", timeout=15, **stdin_kwargs,
     )
     return result.returncode, result.stdout, result.stderr
 
@@ -931,7 +935,10 @@ class TestFermatCli(unittest.TestCase):
     def test_fermat_no_args_error(self):
         code, out, err = run("fermat")
         self.assertEqual(code, 1)
-        self.assertIn("Modulus to factor must be provided", err)
+        # "No modulus provided" when stdin was read and was empty; "must be provided"
+        # when stdin has no data at all (e.g. an interactive terminal). Both are the
+        # intended error for a missing argument.
+        self.assertRegex(err, "No modulus provided to factor|Modulus to factor must be provided")
 
     def test_mersenne_prime(self):
         code, out, err = run("mersenne", "7")
