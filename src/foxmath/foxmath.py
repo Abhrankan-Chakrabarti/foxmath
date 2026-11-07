@@ -4,6 +4,8 @@ FoxMath — Minimalist math & crypto explorer 🦊
 One binary. Clean. Educational. Safe.
 """
 
+from __future__ import annotations
+
 import argparse
 import sys
 import json
