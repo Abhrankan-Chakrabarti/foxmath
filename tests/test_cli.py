@@ -1154,6 +1154,21 @@ class TestReviewRegressionsCLI(unittest.TestCase):
         self.assertGreater(len(out), 5000)
 
 
+
+class TestFermatStdin(unittest.TestCase):
+    def test_fermat_waits_for_a_slow_piped_number(self):
+        # A producer that writes AFTER the CLI has started must not be mistaken for
+        # "no input" (this used to fail: stdin was polled once with a zero timeout).
+        import time
+        proc = subprocess.Popen(
+            [sys.executable, SCRIPT, "fermat"], stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
+        )
+        time.sleep(0.6)
+        out, err = proc.communicate("15\n", timeout=15)
+        self.assertEqual(proc.returncode, 0, err)
+        self.assertIn("Factors of 15", out)
+
 if __name__ == "__main__":
     unittest.main()
 

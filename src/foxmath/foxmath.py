@@ -2772,25 +2772,15 @@ def cmd_repl() -> None:
 # ------------------- CLI -------------------
 
 def _has_stdin_data() -> bool:
-    """Return True if stdin has data waiting to be read without blocking."""
-    if sys.stdin.isatty():
-        return False
-    if sys.platform == "win32":
-        try:
-            import msvcrt
-            import ctypes
-            handle = msvcrt.get_osfhandle(sys.stdin.fileno())
-            avail = ctypes.c_ulong(0)
-            if ctypes.windll.kernel32.PeekNamedPipe(handle, None, 0, None, ctypes.byref(avail), None):
-                return avail.value > 0
-        except Exception:
-            pass
-        return False
-    try:
-        import select
-        return bool(select.select([sys.stdin], [], [], 0.0)[0])
-    except Exception:
-        return False
+    """Return True if stdin should be read, i.e. it is a pipe or file, not a terminal.
+
+    This used to poll for bytes already waiting, with a zero timeout, which
+    mistook a producer that had not written yet (`(sleep 1; echo 15) | foxmath
+    fermat`) for "no input". Like cat and sort, read whenever stdin is not a TTY;
+    an interactive terminal still gets the "must be provided" error instead of
+    waiting for typed input.
+    """
+    return not sys.stdin.isatty()
 
 def get_command():
     """Support symlinks: foxmath-legendre, foxmath-pi, etc."""
