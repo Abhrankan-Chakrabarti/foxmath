@@ -2395,12 +2395,12 @@ def dh_derive(private_key: int, peer_public_key: int, p: int) -> int:
     """Derive Diffie-Hellman shared secret: S = peer_public_key^private_key mod p."""
     if not isinstance(private_key, int) or not isinstance(peer_public_key, int) or not isinstance(p, int):
         raise TypeError("private_key, peer_public_key, and p must be integers")
-    if p <= 2:
-        raise ValueError("Modulus p must be greater than 2")
+    if p <= 3:
+        raise ValueError("Modulus p must be greater than 3")
     if private_key < 1:
         raise ValueError("private_key must be >= 1")
-    if peer_public_key < 1 or peer_public_key >= p:
-        raise ValueError(f"peer_public_key must satisfy 1 <= key < p (got {peer_public_key})")
+    if peer_public_key <= 1 or peer_public_key >= p - 1:
+        raise ValueError(f"peer_public_key must satisfy 2 <= key <= p - 2 (got {peer_public_key})")
     return pow(peer_public_key, private_key, p)
 
 def dh_crack(g: int, public_key: int, p: int) -> int:
@@ -2847,7 +2847,7 @@ def main():
     sqrt.add_argument("a", type=int, help="Integer a")
     sqrt.add_argument("p", type=int, help="Odd prime p")
 
-    prime_cmd = subparsers.add_parser("isprime", help="Deterministic Miller-Rabin primality test")
+    prime_cmd = subparsers.add_parser("isprime", help="Miller-Rabin primality test (exact for n < 3.3e24)")
     prime_cmd.add_argument("n", type=int, help="Integer to test")
 
     factor_cmd = subparsers.add_parser("factor", help="Prime factorization into prime powers")

@@ -194,9 +194,15 @@ class TestDhDerive(unittest.TestCase):
         with self.assertRaises(ValueError):
             dh_derive(12, 100, 100)  # peer pub >= p
         with self.assertRaises(ValueError):
+            dh_derive(12, 99, 100)   # peer pub == p - 1 (trivial secret)
+        with self.assertRaises(ValueError):
+            dh_derive(12, 1, 100)    # peer pub == 1 (trivial secret)
+        with self.assertRaises(ValueError):
             dh_derive(12, 0, 100)    # peer pub < 1
         with self.assertRaises(ValueError):
             dh_derive(0, 50, 100)    # priv < 1
+        with self.assertRaises(ValueError):
+            dh_derive(12, 50, 3)     # p <= 3
         with self.assertRaises(TypeError):
             dh_derive("12", 50, 100)
 

@@ -23,7 +23,7 @@ Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
 - Jacobi symbol (jacobi)
 - Solovay–Strassen probabilistic primality test (solovay)
 - Modular square root via Tonelli-Shanks (sqrtmod)
-- Deterministic Miller-Rabin primality test (isprime)
+- Miller-Rabin primality test: deterministic for n < 3.3 × 10²⁴ via 13 bases, strong probable prime above (isprime)
 - Prime factorization via Pollard's rho & trial division (factor)
 - Discrete logarithm solver via Baby-step Giant-step (dlog)
 - Euler's totient φ(n) and Carmichael λ(n) (totient)
@@ -290,6 +290,7 @@ Time:         68 µs
 ```
 
 ```bash
+# Exact deterministic for n < 3.3e24; strong probable prime above
 foxmath isprime 104729
 ```
 ```
