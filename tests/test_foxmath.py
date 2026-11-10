@@ -1275,5 +1275,34 @@ class TestReviewRegressions(unittest.TestCase):
             discrete_log(3, 5, 2 ** 61 - 1)
 
 
+
+class TestDiffieHellmanPeerKeyBounds(unittest.TestCase):
+    """dh_derive must refuse peer keys that force the shared secret (1, p-1) or are out of range."""
+    P = 1000003  # prime
+
+    def setUp(self):
+        from foxmath.foxmath import dh_keygen
+        self.priv = dh_keygen(self.P, 2, seed=1)["private_key"]
+
+    def test_rejects_degenerate_and_out_of_range_peer_keys(self):
+        from foxmath.foxmath import dh_derive
+        for bad in (-3, 0, 1, self.P - 1, self.P, self.P + 7):
+            with self.subTest(peer=bad):
+                with self.assertRaisesRegex(ValueError, "2 <= key <= p - 2"):
+                    dh_derive(self.priv, bad, self.P)
+
+    def test_accepts_the_boundary_values_2_and_p_minus_2(self):
+        from foxmath.foxmath import dh_derive
+        for ok in (2, self.P - 2):
+            with self.subTest(peer=ok):
+                self.assertIsInstance(dh_derive(self.priv, ok, self.P), int)
+
+    def test_both_sides_derive_the_same_secret(self):
+        from foxmath.foxmath import dh_keygen, dh_derive
+        a = dh_keygen(self.P, 2, seed=1)
+        b = dh_keygen(self.P, 2, seed=2)
+        self.assertEqual(dh_derive(a["private_key"], b["public_key"], self.P),
+                         dh_derive(b["private_key"], a["public_key"], self.P))
+
 if __name__ == "__main__":
     unittest.main()

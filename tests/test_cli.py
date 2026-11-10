@@ -1169,6 +1169,14 @@ class TestFermatStdin(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, err)
         self.assertIn("Factors of 15", out)
 
+
+class TestDiffieHellmanPeerKeyCLI(unittest.TestCase):
+    def test_dh_derive_rejects_degenerate_peer_keys(self):
+        for peer in ("1", "22"):  # 1 and p - 1 for p = 23
+            code, out, err = run("dh", "derive", "4", peer, "23")
+            self.assertEqual(code, 1, peer)
+            self.assertIn("2 <= key <= p - 2", err)
+
 if __name__ == "__main__":
     unittest.main()
 
