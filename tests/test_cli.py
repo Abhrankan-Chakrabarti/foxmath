@@ -409,6 +409,17 @@ class TestNormalUsage(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("Error", err)
 
+    def test_cf_zero_terms_is_a_usage_error_not_an_index_error(self):
+        code, out, err = run("cf", "--num", "3", "--den", "2", "--terms", "0")
+        self.assertEqual(code, 1)
+        self.assertIn("--terms", err)
+        self.assertNotIn("list index out of range", err)
+
+    def test_cf_negative_terms_is_a_usage_error(self):
+        code, out, err = run("cf", "--num", "3", "--den", "2", "--terms", "-2")
+        self.assertEqual(code, 1)
+        self.assertIn("--terms", err)
+
     def test_sqrtmod_non_residue_errors(self):
         code, out, err = run("sqrtmod", "5", "17")
         self.assertEqual(code, 1)
