@@ -3253,6 +3253,8 @@ def main():
                 print(f"x ≡ {x} (mod {m})")
 
         elif cmd == "cf" or args.command == "cf":
+            if args.terms < 1:
+                raise ValueError(f"--terms must be >= 1 (got {args.terms})")
             cf = continued_fraction(args.num, args.den, args.terms)
             convs = cf_convergents(cf)
             result.update({
