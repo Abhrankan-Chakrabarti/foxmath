@@ -100,6 +100,16 @@ class TestMersennePrimesList(unittest.TestCase):
         with self.assertRaises(TypeError):
             mersenne_primes("31")
 
+    def test_list_on_found_streams_each_exponent(self):
+        seen = []
+        result = mersenne_primes(31, on_found=seen.append)
+        self.assertEqual(seen, [2, 3, 5, 7, 13, 17, 19, 31])
+        self.assertEqual(seen, result)
+
+    def test_list_invalid_on_found_raises(self):
+        with self.assertRaises(TypeError):
+            mersenne_primes(31, on_found=123)
+
 
 class TestPerfectNumbers(unittest.TestCase):
     def test_is_perfect(self):

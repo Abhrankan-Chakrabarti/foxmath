@@ -1177,6 +1177,29 @@ class TestDiffieHellmanPeerKeyCLI(unittest.TestCase):
             self.assertEqual(code, 1, peer)
             self.assertIn("2 <= key <= p - 2", err)
 
+
+class TestLongRunFeedbackCLI(unittest.TestCase):
+    def test_factor_warns_on_stderr_for_large_composite(self):
+        # 1000000007 * 10000000000000061 (84-bit composite, fast to factor via Pollard's rho)
+        code, out, err = run("factor", "10000000070000061000000427")
+        self.assertEqual(code, 0, err)
+        self.assertIn("1000000007 * 10000000000000061", out)
+        self.assertIn("this may take a while", err)
+
+    def test_factor_silent_on_stderr_for_json_or_smooth(self):
+        code, out, err = run("factor", "10000000070000061000000427", "--json")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(err.strip(), "")
+        code2, out2, err2 = run("factor", str(2 ** 100))
+        self.assertEqual(code2, 0, err2)
+        self.assertEqual(err2.strip(), "")
+
+    def test_mersenne_list_empty_format_preserved(self):
+        code, out, err = run("mersenne", "--list", "--limit", "1")
+        self.assertEqual(code, 0, err)
+        self.assertIn("Mersenne prime exponents p <= 1:", out)
+        self.assertIn("(0 primes)", out)
+
 if __name__ == "__main__":
     unittest.main()
 

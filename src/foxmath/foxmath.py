@@ -113,6 +113,19 @@ def _factor_recursive(n: int, rng: random.Random, factors: list) -> None:
     _factor_recursive(d, rng, factors)
     _factor_recursive(n // d, rng, factors)
 
+_TRIAL_PRIMES_UNDER_100 = (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97)
+
+def _strip_small_primes(n: int) -> tuple:
+    """Divide out primes under 100 and return (remaining_cofactor, extracted_primes)."""
+    factors = []
+    for p in _TRIAL_PRIMES_UNDER_100:
+        while n % p == 0:
+            factors.append(p)
+            n //= p
+        if n == 1:
+            break
+    return n, factors
+
 def factorize(n: int) -> list:
     """Return sorted list of (prime, power) tuples for integer n >= 1.
 
@@ -125,14 +138,7 @@ def factorize(n: int) -> list:
     if n == 1:
         return []
 
-    factors = []
-    # Small prime trial division up to 100
-    for p in (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97):
-        while n % p == 0:
-            factors.append(p)
-            n //= p
-        if n == 1:
-            break
+    n, factors = _strip_small_primes(n)
 
     if n > 1:
         if is_prime(n):
@@ -1817,10 +1823,15 @@ def mersenne(p: int) -> dict:
         info["perfect_number"] = (1 << (p - 1)) * mp
     return info
 
-def mersenne_primes(limit_p: int = 127) -> list:
-    """Return a list of prime exponents p <= limit_p such that 2^p - 1 is prime."""
+def mersenne_primes(limit_p: int = 127, on_found=None) -> list:
+    """Return a list of prime exponents p <= limit_p such that 2^p - 1 is prime.
+
+    If on_found is provided, it is called with each discovered exponent as it is verified.
+    """
     if not isinstance(limit_p, int):
         raise TypeError("limit_p must be an integer")
+    if on_found is not None and not callable(on_found):
+        raise TypeError("on_found must be callable")
     if limit_p < 2:
         return []
 
@@ -1828,6 +1839,8 @@ def mersenne_primes(limit_p: int = 127) -> list:
     for p in range(2, limit_p + 1):
         if is_prime(p) and lucas_lehmer(p):
             primes.append(p)
+            if on_found is not None:
+                on_found(p)
     return primes
 
 def perfect_number(p: int) -> int:
@@ -3081,6 +3094,14 @@ def main():
                     print(f"{args.n} is {verdict}")
 
         elif cmd == "factor" or args.command == "factor":
+            if not json_output and args.n > 1:
+                rem, _ = _strip_small_primes(args.n)
+                if rem.bit_length() >= 75 and not is_prime(rem):
+                    print(
+                        f"Factoring {len(str(rem))}-digit ({rem.bit_length()}-bit) composite; this may take a while...",
+                        file=sys.stderr,
+                        flush=True,
+                    )
             factors = factorize(args.n)
             is_p = is_prime(args.n)
             expr = format_factorization(factors)
@@ -3442,7 +3463,21 @@ def main():
 
         elif cmd == "mersenne" or args.command == "mersenne":
             if args.list:
-                m_primes = mersenne_primes(args.limit)
+                if not json_output:
+                    print(f"Mersenne prime exponents p <= {args.limit}:", flush=True)
+                    print("  ", end="", flush=True)
+                    first = True
+
+                    def _stream_exponent(p: int) -> None:
+                        nonlocal first
+                        prefix = "" if first else ", "
+                        first = False
+                        print(f"{prefix}{p}", end="", flush=True)
+
+                    m_primes = mersenne_primes(args.limit, on_found=_stream_exponent)
+                    print(f" ({len(m_primes)} primes)")
+                else:
+                    m_primes = mersenne_primes(args.limit)
                 result.update({
                     "command": "mersenne",
                     "action": "list",
@@ -3450,9 +3485,6 @@ def main():
                     "exponents": m_primes,
                     "count": len(m_primes),
                 })
-                if not json_output:
-                    print(f"Mersenne prime exponents p <= {args.limit}:")
-                    print(f"  {', '.join(str(p) for p in m_primes)} ({len(m_primes)} primes)")
             else:
                 if args.p is None:
                     raise ValueError("Specify exponent p or use --list")
