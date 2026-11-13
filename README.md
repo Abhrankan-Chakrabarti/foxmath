@@ -14,17 +14,17 @@ Built with curiosity — for students, tinkerers, and crypto/math enthusiasts.
 - Dixon's random squares integer factorization: sub-exponential integer factorization with quadratic residue factor base and GF(2) linear algebra (dixon)
 - Lenstra's elliptic curve factorization (ECM): multi-curve two-stage factoring with Weierstrass curves and SplitMix64 PRNG (ecm)
 - Two-stage Pollard's p-1 integer factorization: Stage 1 prime-power exponentiation with automatic prime backtracking and Stage 2 prime difference table (pm1)
-- Lucas–Lehmer deterministic primality test for Mersenne numbers M_p = 2^p - 1 and prime exponent search (mersenne)
+- Lucas–Lehmer deterministic primality test for Mersenne numbers M_p = 2^p - 1 and live-streaming prime exponent search (--list) (mersenne)
 - Euclid–Euler perfect number generator and test: 2^(p-1) * (2^p - 1) (perfect)
 - Fermat's difference of squares factorization: fast factoring when factors are close, with configurable precision, interval, and iteration offset (fermat)
 - Textbook RSA cryptosystem: key generation, encryption, CRT-accelerated decryption, and multi-method modulus crack (Pollard's ρ & Fermat's attack) (rsa)
-- Diffie-Hellman key exchange: key generation, shared secret derivation, and BSGS discrete log attack (dh)
+- Diffie-Hellman key exchange: key generation, RFC 3526 peer key bounds validation (2 <= y <= p - 2), shared secret derivation, and BSGS discrete log attack (dh)
 - Legendre symbol
 - Jacobi symbol (jacobi)
 - Solovay–Strassen probabilistic primality test (solovay)
 - Modular square root via Tonelli-Shanks (sqrtmod)
 - Miller-Rabin primality test: deterministic for n < 3.3 × 10²⁴ via 13 bases, strong probable prime above (isprime)
-- Prime factorization via Pollard's rho & trial division (factor)
+- Prime factorization via Pollard's rho & trial division with early stderr composite advisory (factor)
 - Discrete logarithm solver via Baby-step Giant-step (dlog)
 - Euler's totient φ(n) and Carmichael λ(n) (totient)
 - Multiplicative order and primitive roots (order)
@@ -68,7 +68,7 @@ Check which version you have installed:
 foxmath --version
 ```
 ```
-foxmath 0.16.0
+foxmath 0.20.3
 ```
 
 ## Usage Examples
@@ -192,7 +192,7 @@ M_13 = 2^13 - 1 = 8191
 ```
 
 ```bash
-# List all Mersenne prime exponents up to limit
+# List all Mersenne prime exponents up to limit (streams live as primes are found)
 foxmath mersenne --list --limit 31
 ```
 ```
