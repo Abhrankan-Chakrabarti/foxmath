@@ -68,7 +68,7 @@ Check which version you have installed:
 foxmath --version
 ```
 ```
-foxmath 0.20.3
+foxmath 0.20.4
 ```
 
 ## Usage Examples
