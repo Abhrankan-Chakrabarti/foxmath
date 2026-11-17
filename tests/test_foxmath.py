@@ -1304,5 +1304,20 @@ class TestDiffieHellmanPeerKeyBounds(unittest.TestCase):
         self.assertEqual(dh_derive(a["private_key"], b["public_key"], self.P),
                          dh_derive(b["private_key"], a["public_key"], self.P))
 
+
+class TestSqufofReport(unittest.TestCase):
+    def test_reported_square_is_the_square_of_the_reported_root(self):
+        # cycle 2 reuses the working variable, so the dict once reported a "square_q"
+        # that was not sqrt_q ** 2 (in every run).
+        from foxmath.foxmath import squfof_factor
+        checked = 0
+        for n in (163 * 521, 101 * 103, 1009 * 1013, 7919 * 7907, 99991 * 99989):
+            r = squfof_factor(n)
+            if r["success"]:
+                checked += 1
+                self.assertEqual(r["sqrt_q"] ** 2, r["square_q"], n)
+                self.assertEqual(r["factor"] * r["cofactor"], n)
+        self.assertGreaterEqual(checked, 3)
+
 if __name__ == "__main__":
     unittest.main()

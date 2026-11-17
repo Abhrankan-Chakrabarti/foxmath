@@ -1536,6 +1536,9 @@ def squfof_factor(
             continue
 
         q_sqrt = isqrt(q_2)
+        # Keep the square that cycle 1 found: cycle 2 reuses q_2 as its rolling value,
+        # so reporting q_2 at the end gave a number that was not q_sqrt**2.
+        square_q = q_2
         b_0 = (p_init - p_1) // q_sqrt
         p0 = b_0 * q_sqrt + p_1
         q0 = q_sqrt
@@ -1569,7 +1572,7 @@ def squfof_factor(
                 "multiplier": k,
                 "cycle1_steps": i,
                 "cycle2_steps": steps2,
-                "square_q": q_2,
+                "square_q": square_q,
                 "sqrt_q": q_sqrt,
                 "message": f"Found non-trivial factor p = {p} via SQUFOF (multiplier k = {k}, cycle 1 = {i} steps, cycle 2 = {steps2} steps)",
                 "elapsed_us": elapsed_us,

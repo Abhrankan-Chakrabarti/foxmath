@@ -68,7 +68,7 @@ Check which version you have installed:
 foxmath --version
 ```
 ```
-foxmath 0.20.4
+foxmath 0.20.5
 ```
 
 ## Usage Examples
@@ -241,9 +241,9 @@ Cofactor:     q = 1381
 Curve index:  1 (of 1 tested)
 Stage:        1
 Bounds:       B1 = 50, B2 = 500
-Curve params: a = 237890, b = 478392
-Steps:        15
-Time:         142 µs
+Curve params: a = 963403, b = 80231
+Steps:        5
+Time:         162 µs
 ```
 
 ```bash
@@ -255,10 +255,10 @@ Factor found: p = 163
 Cofactor:     q = 521
 Bound B:      60 (Factor base size: 8)
 Radius M:     3000
-Relations:    18 of 9 needed
-Congruence:   291² ≡ 84² (mod 84923)
-Candidates:   6001 sieve candidates checked
-Time:         1620 µs
+Relations:    18 of 18 needed
+Congruence:   84625² ≡ 20021² (mod 84923)
+Candidates:   168 sieve candidates checked
+Time:         1570 µs
 ```
 
 ```bash
@@ -269,10 +269,10 @@ foxmath squfof 84923
 Factor found: p = 163
 Cofactor:     q = 521
 Multiplier:   k = 1
-Cycle 1:      4 steps
-Cycle 2:      2 steps
-Square Q:     1156 (sqrt = 34)
-Time:         25 µs
+Cycle 1:      10 steps
+Cycle 2:      6 steps
+Square Q:     289 (sqrt = 17)
+Time:         22 µs
 ```
 
 ```bash
@@ -285,8 +285,8 @@ Cofactor:     q = 521
 Bound B:      30 (Factor base size: 4)
 Relations:    14 of 14 needed
 Congruence:   505² ≡ 16² (mod 84923)
-Steps:        14
-Time:         68 µs
+Steps:        4176
+Time:         2634 µs
 ```
 
 ```bash
